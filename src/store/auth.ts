@@ -43,17 +43,26 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     const { api } = await import('@/services/api');
     const response = await api.post('/login', { email, senha: password });
-    const { accessToken, id, name, empresa_id } = response.data;
+    // Backend returns: { sucesso, dados: { auth, token: "Bearer ...", usuario: { id, nome_completo, email, empresa_id } } }
+    const { token, usuario } = response.data.dados as {
+      token: string;
+      usuario: { id: string; nome_completo: string; email: string; empresa_id?: string };
+    };
 
-    const user: User = { id, email, name, empresa_id };
+    const user: User = {
+      id: usuario.id,
+      email: usuario.email,
+      name: usuario.nome_completo,
+      empresa_id: usuario.empresa_id,
+    };
 
     await Promise.all([
-      SecureStore.setItemAsync(TOKEN_KEY, accessToken),
+      SecureStore.setItemAsync(TOKEN_KEY, token),
       SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
     ]);
 
-    tokenManager.set(accessToken);
-    set({ token: accessToken, user, isAuthenticated: true });
+    tokenManager.set(token);
+    set({ token, user, isAuthenticated: true });
   },
 
   logout: () => {

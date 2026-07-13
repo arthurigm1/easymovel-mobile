@@ -4,6 +4,7 @@ export interface AnexoItem {
   link: string;
   descricao?: string;
   ordenacao?: number;
+  criado_em?: string;
 }
 
 export interface EmpresaInfo {
@@ -13,12 +14,17 @@ export interface EmpresaInfo {
   razao_social?: string;
   anexos?: AnexoItem[];
   link_portal?: string;
+  nome_do_responsavel?: string;
+  telefone_do_responsavel?: string;
+  nome_do_responsavel_2?: string;
+  telefone_do_responsavel_2?: string;
 }
 
 export interface UnidadeItem {
   id: string;
   descricao?: string;
   tipologia?: string;
+  bloco?: string;
   area?: number;
   area_externa?: number;
   quant_quartos?: number;
@@ -27,13 +33,42 @@ export interface UnidadeItem {
   quant_vagas?: number;
   valor?: number;
   status?: string;
-  bloco?: string;
+  ordenacao?: number;
+  criado_em?: string;
 }
 
 export interface VideoItem {
   id: string;
   url_youtube?: string;
   criado_em?: string;
+}
+
+export interface ParcelamentoItem {
+  id: string;
+  descricao?: string;
+  percentual?: number;
+  quant_parcelas?: number;
+  ordem?: number;
+  parcela_id?: string;
+}
+
+export interface ComodidadeItem {
+  id: string;
+  comodidade: {
+    id: string;
+    descricao: string;
+    categoria: 'Esporte e Lazer' | 'Segurança' | 'Facilidades' | string;
+  };
+}
+
+export interface ParceriaItem {
+  id: string;
+  empresa: {
+    id: string;
+    nome_mascara?: string;
+    nome_fantasia?: string;
+    razao_social?: string;
+  };
 }
 
 export interface Empreendimento {
@@ -43,12 +78,15 @@ export interface Empreendimento {
   finalidade?: string;
   status?: string;
   tipo_produto?: string;
+  varios_blocos?: boolean;
+  oculta_tabela_de_vendas?: boolean;
   endereco?: string;
   numero?: string;
   bairro?: string;
   bairro_comercial?: string;
   cidade?: string;
   uf?: string;
+  cep?: string;
   latitude?: number;
   longitude?: number;
   descricao?: string;
@@ -67,15 +105,29 @@ export interface Empreendimento {
   unidades_banheiros?: { minimo: number; maximo: number };
   quant_andares?: number;
   quant_unidades?: number;
+  quant_lotes?: number;
+  quant_blocos?: number;
   quant_elevadores?: number;
+  unidades_por_andar?: number;
+  area_terreno?: number;
   final_construcao?: string;
   previsao_na_planta?: string;
   valor_condominio?: number;
+  valor_iptu?: number;
   taxa_enxoval?: number;
   nome_construtora?: string;
   nome_projetista?: string;
+  instalacao_para_ar?: string;
+  aquecimento_chuveiro?: string;
+  medidor_agua_ind?: boolean;
+  medidor_gas_ind?: boolean;
   telefone_responsavel_empreendimento?: string;
   nome_responsavel_empreendimento?: string;
+  telefone_responsavel_empreendimento_2?: string;
+  nome_responsavel_empreendimento_2?: string;
+  comodidade_empreendimentos?: ComodidadeItem[];
+  parcerias?: ParceriaItem[];
+  parcelamentos?: ParcelamentoItem[];
   anexos?: AnexoItem[];
   unidades?: UnidadeItem[];
   videos?: VideoItem[];

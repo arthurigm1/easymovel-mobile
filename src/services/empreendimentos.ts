@@ -28,10 +28,26 @@ export async function postAcesso(payload: {
   try {
     await api.post('/acesso', { ...payload, origem: 'mobile' });
   } catch {
-    // tracking is non-critical, silently ignore errors
+    // tracking is non-critical, silently ignore
   }
 }
 
-export async function registrarInteresse(empreendimento_id: string): Promise<void> {
-  await api.post('/registrar-interesse', { empreendimento_id, origem: 'mobile' });
+// Bug fix: was calling wrong path "/registrar-interesse" (404) and missing usuario_id
+export async function registrarInteresse(empreendimento_id: string, usuario_id: string): Promise<void> {
+  await api.post('/registrar-interesse-pre-lancamento', { empreendimento_id, usuario_id });
+}
+
+export async function consultarInteresse(empreendimento_id: string): Promise<boolean> {
+  try {
+    const response = await api.get<ApiResponse<{ interesse: boolean }>>(
+      `/consultar-interesse-pre-lancamento/${empreendimento_id}`
+    );
+    return response.data.dados?.interesse ?? false;
+  } catch {
+    return false;
+  }
+}
+
+export async function esqueceuSenha(email: string, senha_nova: string): Promise<void> {
+  await api.post('/esqueci-senha', { email, senha_nova });
 }

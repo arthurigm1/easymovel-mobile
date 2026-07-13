@@ -81,17 +81,21 @@ export function PhotoLightbox({ photos, initialIndex = 0, visible, onClose }: Pr
             const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
             setCurrentIndex(idx);
           }}
-          renderItem={({ item }) => (
-            <View style={styles.slide}>
-              <Image
-                source={item.link}
-                style={styles.photo}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                transition={150}
-              />
-            </View>
-          )}
+          renderItem={({ item }) => {
+            // Load full-res version: strip /medium/ path segment (same as frontend)
+            const hiRes = item.link?.replace(/\/medium\//g, '/') ?? item.link;
+            return (
+              <View style={styles.slide}>
+                <Image
+                  source={hiRes}
+                  style={styles.photo}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                />
+              </View>
+            );
+          }}
         />
 
         {/* Description */}

@@ -60,7 +60,7 @@ function fmtValor(v: number) {
 }
 
 export default function EmpreendimentosScreen() {
-  const params = useLocalSearchParams<{ empresa_id?: string; empresa_nome?: string; status_construcao?: string }>();
+  const params = useLocalSearchParams<{ empresa_id?: string; empresa_nome?: string; status_construcao?: string; regiao?: string }>();
   const [searchText, setSearchText] = useState('');
   const [filterVisible, setFilterVisible] = useState(false);
   const [pendingFilters, setPendingFilters] = useState<FilterState>(EMPTY_FILTERS);
@@ -69,16 +69,17 @@ export default function EmpreendimentosScreen() {
 
   const debouncedSearch = useDebounce(searchText, 400);
 
-  // Apply navigation params (empresa_id from construtoras, status_construcao from home)
+  // Apply navigation params (empresa_id from construtoras, status_construcao/regiao from home)
   useEffect(() => {
-    if (params.empresa_id || params.status_construcao) {
+    if (params.empresa_id || params.status_construcao || params.regiao) {
       setActiveFilters((prev) => ({
         ...prev,
         ...(params.empresa_id ? { empresa_id: params.empresa_id, empresa_nome: params.empresa_nome } : {}),
         ...(params.status_construcao ? { status_construcao: params.status_construcao } : {}),
+        ...(params.regiao ? { regiao: params.regiao } : {}),
       }));
     }
-  }, [params.empresa_id, params.status_construcao]);
+  }, [params.empresa_id, params.status_construcao, params.regiao]);
 
   // Count unique filter dimensions (valor range = 1, area range = 1)
   const activeCount = [

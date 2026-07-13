@@ -489,6 +489,32 @@ export default function InicioScreen() {
         {/* ── Quick Actions ── */}
         <QuickActions actions={quickActions} />
 
+        {/* ── Regiões ── */}
+        <View style={styles.regiaoRow}>
+          {[
+            { label: 'BH', regiao: 'belo horizonte', icon: 'location-outline' as IoniconName },
+            { label: 'SP', regiao: 'sao paulo', icon: 'location-outline' as IoniconName },
+            { label: 'Salvador', regiao: 'salvador', icon: 'location-outline' as IoniconName },
+            { label: 'SC', regiao: 'santa catarina', icon: 'location-outline' as IoniconName },
+            { label: 'Uberlândia', regiao: 'uberlandia', icon: 'location-outline' as IoniconName },
+          ].map((r) => (
+            <TouchableOpacity
+              key={r.regiao}
+              style={styles.regiaoChip}
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/empreendimentos',
+                  params: { regiao: r.regiao },
+                })
+              }
+              activeOpacity={0.8}
+            >
+              <Ionicons name={r.icon} size={11} color={Palette.primary} />
+              <Text style={styles.regiaoText}>{r.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* ── Stats ── */}
         <StatsRow
           total={total}
@@ -627,6 +653,30 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Regiões
+  regiaoRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  regiaoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primaryMid,
+  },
+  regiaoText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Palette.primary,
   },
 
   // Carousel

@@ -50,13 +50,13 @@ function getYoutubeThumbnail(url?: string): string | null {
   return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
 }
 
-const TABS = [
+const ALL_TABS = [
   { key: 'overview', label: 'Visão Geral' },
   { key: 'photos', label: 'Fotos' },
   { key: 'plantas', label: 'Plantas' },
   { key: 'tabela', label: 'Tabela de Vendas' },
 ] as const;
-type TabKey = (typeof TABS)[number]['key'];
+type TabKey = (typeof ALL_TABS)[number]['key'];
 
 function InfoCard({ icon, label, value }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -101,7 +101,6 @@ const infoStyles = StyleSheet.create({
   label: { fontSize: 11, color: Palette.textTertiary, fontWeight: '600' },
   value: { fontSize: 14, color: Palette.text, fontWeight: '700', marginTop: 2 },
 });
-
 export default function EmpreendimentoDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -230,8 +229,31 @@ export default function EmpreendimentoDetail() {
   const empresaNome = getEmpresaNome(e.empresa);
   const isPreLancamento = ['pre-lancamento', 'Pré-Lançamento', 'pre lancamento'].includes(e.status ?? '');
   const hasCoords = !!(e.latitude && e.longitude);
-  const phone = e.telefone_responsavel_empreendimento?.replace(/\D/g, '') ?? '';
-  const hasWhatsApp = phone.length >= 10;
+
+  // Build contact list: up to 2 responsáveis from the property, fallback to empresa contacts
+  type ContactInfo = { nome: string; phone: string };
+  function buildContacts(): ContactInfo[] {
+    const raw: Array<{ nome?: string; tel?: string }> = [
+      { nome: e.nome_responsavel_empreendimento,   tel: e.telefone_responsavel_empreendimento },
+      { nome: e.nome_responsavel_empreendimento_2, tel: e.telefone_responsavel_empreendimento_2 },
+      { nome: e.empresa?.nome_do_responsavel,      tel: e.empresa?.telefone_do_responsavel },
+      { nome: e.empresa?.nome_do_responsavel_2,    tel: e.empresa?.telefone_do_responsavel_2 },
+    ];
+    const seen = new Set<string>();
+    const result: ContactInfo[] = [];
+    for (const r of raw) {
+      const p = r.tel?.replace(/\D/g, '') ?? '';
+      if (p.length >= 10 && !seen.has(p)) {
+        seen.add(p);
+        result.push({ nome: r.nome ?? '', phone: p });
+      }
+      if (result.length >= 2) break;
+    }
+    return result;
+  }
+  const contacts = buildContacts();
+  const phone = contacts[0]?.phone ?? '';
+  const hasWhatsApp = contacts.length > 0;
 
   function handleMap() {
     if (!e.latitude || !e.longitude) return;
@@ -300,9 +322,48 @@ export default function EmpreendimentoDetail() {
     e.previsao_na_planta
       ? { icon: 'calendar-outline', label: 'Prev. na planta', value: formatDate(e.previsao_na_planta) ?? e.previsao_na_planta }
       : null,
+    e.unidades_por_andar
+      ? { icon: 'layers-outline', label: 'Un. por andar', value: `${e.unidades_por_andar} un.` }
+      : null,
+    e.area_terreno
+      ? { icon: 'map-outline', label: 'Área do terreno', value: `${Math.trunc(e.area_terreno).toLocaleString('pt-BR')}m²` }
+      : null,
+    e.instalacao_para_ar
+      ? { icon: 'thermometer-outline', label: 'Ar condicionado', value: e.instalacao_para_ar }
+      : null,
+    e.aquecimento_chuveiro
+      ? { icon: 'flame-outline', label: 'Aquecimento', value: e.aquecimento_chuveiro }
+      : null,
+    e.medidor_agua_ind != null
+      ? { icon: 'water-outline', label: 'Med. água ind.', value: e.medidor_agua_ind ? 'Sim' : 'Não' }
+      : null,
+    e.medidor_gas_ind != null
+      ? { icon: 'flame-outline', label: 'Med. gás ind.', value: e.medidor_gas_ind ? 'Sim' : 'Não' }
+      : null,
+    e.parcerias && e.parcerias.length > 0
+      ? {
+          icon: 'people-outline' as React.ComponentProps<typeof Ionicons>['name'],
+          label: 'Parceria(s)',
+          value: e.parcerias.map((p) => p.empresa.nome_mascara ?? p.empresa.nome_fantasia ?? p.empresa.razao_social ?? '').filter(Boolean).join(', '),
+        }
+      : null,
   ].filter(Boolean) as typeof infoCards;
 
   const documentos = getDocumentos(e);
+
+  const unitCount = e.unidades?.length ?? 0;
+  const visibleTabs = ALL_TABS.filter((t) => {
+    if (t.key === 'photos') return photos.length > 0;
+    if (t.key === 'plantas') return plantas.length > 0;
+    if (t.key === 'tabela') return unitCount > 0;
+    return true;
+  });
+  function tabLabel(tab: (typeof ALL_TABS)[number]): string {
+    if (tab.key === 'photos') return `Fotos (${photos.length})`;
+    if (tab.key === 'plantas') return `Plantas (${plantas.length})`;
+    if (tab.key === 'tabela') return `Tabela (${unitCount})`;
+    return tab.label;
+  }
 
   return (
     <View style={styles.root}>
@@ -394,7 +455,7 @@ export default function EmpreendimentoDetail() {
           style={styles.tabBar}
           contentContainerStyle={styles.tabBarContent}
         >
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <TouchableOpacity
               key={tab.key}
               style={[styles.tab, activeTab === tab.key && styles.tabActive]}
@@ -402,7 +463,7 @@ export default function EmpreendimentoDetail() {
               activeOpacity={0.8}
             >
               <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                {tab.label}
+                {tabLabel(tab)}
               </Text>
               {activeTab === tab.key && <View style={styles.tabIndicator} />}
             </TouchableOpacity>
@@ -549,33 +610,71 @@ export default function EmpreendimentoDetail() {
                 );
               })() : null}
 
+              {/* Comodidades */}
+              {e.comodidade_empreendimentos && e.comodidade_empreendimentos.length > 0 && (() => {
+                const byCategory: Record<string, string[]> = {};
+                for (const c of e.comodidade_empreendimentos) {
+                  const cat = c.comodidade.categoria ?? 'Outros';
+                  if (!byCategory[cat]) byCategory[cat] = [];
+                  byCategory[cat].push(c.comodidade.descricao);
+                }
+                const catIcon: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+                  'Esporte e Lazer': 'fitness-outline',
+                  'Segurança':       'shield-checkmark-outline',
+                  'Facilidades':     'star-outline',
+                };
+                return (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>
+                      Comodidades ({e.comodidade_empreendimentos.length})
+                    </Text>
+                    {Object.entries(byCategory).map(([cat, items]) => (
+                      <View key={cat} style={styles.comodidadeGroup}>
+                        <View style={styles.comodidadeGroupHeader}>
+                          <Ionicons name={catIcon[cat] ?? 'ellipse-outline'} size={14} color={Palette.primary} />
+                          <Text style={styles.comodidadeGroupLabel}>{cat}</Text>
+                        </View>
+                        <View style={styles.comodidadeChips}>
+                          {items.map((item) => (
+                            <View key={item} style={styles.comodidadeChip}>
+                              <Text style={styles.comodidadeChipText}>{item}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+
               {/* Contact */}
-              {(hasWhatsApp || e.nome_responsavel_empreendimento) && (
+              {contacts.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Contato</Text>
-                  <View style={styles.contactCard}>
-                    <View style={styles.contactAvatar}>
-                      <Ionicons name="person" size={20} color={Palette.primary} />
-                    </View>
-                    <View style={styles.contactInfo}>
-                      {e.nome_responsavel_empreendimento ? (
-                        <Text style={styles.contactName}>{e.nome_responsavel_empreendimento}</Text>
-                      ) : null}
-                      {hasWhatsApp ? (
-                        <Text style={styles.contactPhone}>
-                          {phone.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 ($2) $3-$4')}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {hasWhatsApp && (
-                      <TouchableOpacity
-                        style={styles.contactWhatsApp}
-                        onPress={handleWhatsApp}
-                        activeOpacity={0.85}
-                      >
-                        <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-                      </TouchableOpacity>
-                    )}
+                  <View style={styles.contactList}>
+                    {contacts.map((c, idx) => {
+                      const waNum = c.phone.startsWith('55') ? c.phone : `55${c.phone}`;
+                      const fmtPhone = c.phone.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 ($2) $3-$4');
+                      const msg = encodeURIComponent(`Olá! Vi o empreendimento "${e.nome_empreendimento}" e gostaria de mais informações.`);
+                      return (
+                        <View key={idx} style={styles.contactCard}>
+                          <View style={styles.contactAvatar}>
+                            <Ionicons name="person" size={20} color={Palette.primary} />
+                          </View>
+                          <View style={styles.contactInfo}>
+                            {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
+                            <Text style={styles.contactPhone}>{fmtPhone}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.contactWhatsApp}
+                            onPress={() => Linking.openURL(`https://wa.me/${waNum}?text=${msg}`)}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -806,9 +905,10 @@ export default function EmpreendimentoDetail() {
           {/* ── TAB: Tabela de Vendas ── */}
           {activeTab === 'tabela' && (
             <View style={styles.tab_content}>
-              <SalesTable units={e.unidades ?? []} />
+              <SalesTable units={e.unidades ?? []} varios_blocos={e.varios_blocos} />
             </View>
           )}
+
         </View>
       </ScrollView>
 
@@ -902,8 +1002,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   shareBtn: {
-    position: 'absolute',
-    right: 16,
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -1174,6 +1272,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Palette.textTertiary,
   },
+  contactList: { gap: 8 },
   contactCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1211,6 +1310,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadow.sm,
   },
+  // Comodidades
+  comodidadeGroup: { gap: 8 },
+  comodidadeGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  comodidadeGroupLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  comodidadeChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  comodidadeChip: {
+    backgroundColor: Palette.primaryLight,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: Palette.primaryMid,
+  },
+  comodidadeChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Palette.primary,
+  },
+
   stepperSection: { gap: 10 },
   stepperCard: {
     backgroundColor: Palette.surface,

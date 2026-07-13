@@ -154,38 +154,44 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
           <View style={styles.specsRow}>
             {quartosStr && (
               <View style={styles.specChip}>
-                <Ionicons name="bed-outline" size={11} color={Palette.textSecondary} />
+                <Ionicons name="bed-outline" size={11} color={Palette.primary} />
                 <Text style={styles.specText}>{quartosStr} qts</Text>
               </View>
             )}
             {areaStr && (
               <View style={styles.specChip}>
-                <Ionicons name="expand-outline" size={11} color={Palette.textSecondary} />
+                <Ionicons name="expand-outline" size={11} color={Palette.primary} />
                 <Text style={styles.specText}>{areaStr}</Text>
               </View>
             )}
             {vagasStr && (
               <View style={styles.specChip}>
-                <Ionicons name="car-outline" size={11} color={Palette.textSecondary} />
+                <Ionicons name="car-outline" size={11} color={Palette.primary} />
                 <Text style={styles.specText}>{vagasStr} vagas</Text>
               </View>
             )}
             {e.unidades_disponiveis != null && (
-              <View style={styles.specChip}>
-                <Ionicons name="home-outline" size={11} color={Palette.textSecondary} />
-                <Text style={styles.specText}>{e.unidades_disponiveis} disp.</Text>
+              <View style={[styles.specChip, styles.specChipDisp]}>
+                <Ionicons name="home" size={11} color={Palette.success} />
+                <Text style={[styles.specText, styles.specTextDisp]}>{e.unidades_disponiveis} disp.</Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Price */}
-        {e.valor && (
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>A partir de</Text>
-            <Text style={styles.price}>{formatCurrency(e.valor)}</Text>
+        {/* Price + CTA row */}
+        <View style={styles.priceCtaRow}>
+          {e.valor ? (
+            <View style={styles.priceBlock}>
+              <Text style={styles.priceLabel}>A partir de</Text>
+              <Text style={styles.price}>{formatCurrency(e.valor)}</Text>
+            </View>
+          ) : <View style={{ flex: 1 }} />}
+          <View style={styles.ctaArrow}>
+            <Text style={styles.ctaArrowText}>Ver</Text>
+            <Ionicons name="arrow-forward" size={13} color={Palette.primary} />
           </View>
-        )}
+        </View>
 
         {/* Progress bar */}
         {e.fracao_vendida != null && e.fracao_vendida > 0 && (
@@ -370,17 +376,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Palette.surfaceVariant,
+    backgroundColor: Palette.primaryLight,
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  specChipDisp: {
+    backgroundColor: Palette.successBg,
+  },
   specText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Palette.textSecondary,
+    color: Palette.primaryDark,
   },
-  priceRow: { gap: 0 },
+  specTextDisp: {
+    color: Palette.success,
+  },
+  priceCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  priceBlock: { gap: 0 },
   priceLabel: {
     fontSize: 10,
     fontWeight: '600',
@@ -389,9 +406,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   price: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
-    color: Palette.text,
-    letterSpacing: -0.5,
+    color: Palette.primary,
+    letterSpacing: -0.6,
+  },
+  ctaArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Palette.primaryMid,
+    backgroundColor: Palette.primaryLight,
+  },
+  ctaArrowText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Palette.primary,
   },
 });
