@@ -6,7 +6,8 @@ import {
 import type { FiltrarEmpreendimentosParams } from '@/types';
 
 export function useEmpreendimentos(
-  params: Omit<FiltrarEmpreendimentosParams, 'pagina'>
+  params: Omit<FiltrarEmpreendimentosParams, 'pagina'>,
+  options?: { enabled?: boolean }
 ) {
   return useInfiniteQuery({
     queryKey: ['empreendimentos', params],
@@ -18,6 +19,7 @@ export function useEmpreendimentos(
     },
     initialPageParam: 1,
     staleTime: 1000 * 60 * 5,
+    enabled: options?.enabled !== false,
   });
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,18 +11,24 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
+import { Palette, Radius, Shadow } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { login } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
+
+  const passwordRef = useRef<TextInput>(null);
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -43,203 +49,246 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
+        {/* ── Hero ── */}
+        <LinearGradient
+          colors={[Palette.primaryDark, Palette.primary]}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={[styles.hero, { paddingTop: Math.max(insets.top + 40, 80) }]}
         >
-          {/* Logo / Brand */}
-          <View style={styles.brand}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="home" size={36} color="#FFFFFF" />
+          <View style={styles.logoWrap}>
+            <View style={styles.logoInner}>
+              <Ionicons name="home" size={36} color={Palette.primary} />
             </View>
-            <Text style={styles.appName}>Easymovel</Text>
-            <Text style={styles.tagline}>Seu próximo lar começa aqui</Text>
           </View>
+          <Text style={styles.appName}>Easymovel</Text>
+          <Text style={styles.tagline}>Seu próximo lar começa aqui</Text>
+        </LinearGradient>
 
-          {/* Form */}
-          <View style={styles.form}>
-            <Text style={styles.formTitle}>Entrar</Text>
+        {/* ── Form card ── */}
+        <View style={styles.card}>
+          <Text style={styles.formTitle}>Entrar na sua conta</Text>
 
-            {error ? (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle-outline" size={16} color="#B91C1C" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.field}>
-              <Text style={styles.label}>E-mail</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="seu@email.com"
-                  placeholderTextColor="#CBD5E1"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="next"
-                />
-              </View>
+          {error ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={16} color={Palette.error} />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
+          ) : null}
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Senha</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="••••••••"
-                  placeholderTextColor="#CBD5E1"
-                  secureTextEntry={!showPassword}
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                />
-                <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color="#94A3B8"
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.btn, loading && styles.btnDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.85}
+          {/* Email */}
+          <View style={styles.field}>
+            <Text style={styles.label}>E-mail</Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                focusedField === 'email' && styles.inputFocused,
+              ]}
             >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.btnText}>Entrar</Text>
-              )}
-            </TouchableOpacity>
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={focusedField === 'email' ? Palette.primary : Palette.textTertiary}
+              />
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="seu@email.com"
+                placeholderTextColor={Palette.textDisabled}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
+            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+          {/* Senha */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Senha</Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                focusedField === 'password' && styles.inputFocused,
+              ]}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={focusedField === 'password' ? Palette.primary : Palette.textTertiary}
+              />
+              <TextInput
+                ref={passwordRef}
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor={Palette.textDisabled}
+                secureTextEntry={!showPassword}
+                returnKeyType="done"
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(null)}
+                onSubmitEditing={handleLogin}
+              />
+              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={Palette.textTertiary}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.btn, loading && styles.btnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color={Palette.white} />
+            ) : (
+              <Text style={styles.btnText}>Entrar</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC' },
-  flex: { flex: 1 },
+  flex: { flex: 1, backgroundColor: Palette.bg },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    gap: 32,
   },
-  brand: {
+
+  // Hero
+  hero: {
     alignItems: 'center',
+    paddingBottom: 52,
     gap: 12,
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: '#1A56DB',
+  logoWrap: {
+    width: 84,
+    height: 84,
+    borderRadius: Radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1A56DB',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  logoInner: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   appName: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
+    fontSize: 30,
+    fontWeight: '900',
+    color: Palette.white,
+    letterSpacing: -0.6,
   },
   tagline: {
     fontSize: 14,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
   },
-  form: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    gap: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+
+  // Form card
+  card: {
+    backgroundColor: Palette.surface,
+    borderTopLeftRadius: Radius.xxxl,
+    borderTopRightRadius: Radius.xxxl,
+    flex: 1,
+    marginTop: -24,
+    paddingTop: 32,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    gap: 20,
+    ...Shadow.xl,
   },
   formTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: 22,
+    fontWeight: '800',
+    color: Palette.text,
+    letterSpacing: -0.4,
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
+    backgroundColor: Palette.errorBg,
+    borderRadius: Radius.md,
     padding: 12,
     gap: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   errorText: {
     fontSize: 13,
-    color: '#B91C1C',
+    color: Palette.error,
     flex: 1,
+    fontWeight: '500',
   },
-  field: { gap: 6 },
+  field: { gap: 7 },
   label: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: Palette.textSecondary,
+    letterSpacing: 0.1,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Palette.surfaceVariant,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 10,
   },
-  inputIcon: { flexShrink: 0 },
+  inputFocused: {
+    borderColor: Palette.primary,
+    backgroundColor: Palette.primaryLight,
+  },
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#0F172A',
+    color: Palette.text,
     padding: 0,
   },
   btn: {
-    backgroundColor: '#1A56DB',
-    borderRadius: 14,
-    paddingVertical: 15,
+    backgroundColor: Palette.primary,
+    borderRadius: Radius.lg,
+    paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
-    shadowColor: '#1A56DB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    ...Shadow.lg,
   },
-  btnDisabled: { opacity: 0.7 },
+  btnDisabled: { opacity: 0.65 },
   btnText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontWeight: '800',
+    color: Palette.white,
+    letterSpacing: 0.2,
   },
 });

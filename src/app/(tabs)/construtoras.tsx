@@ -1,43 +1,154 @@
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useConstrutoras } from '@/hooks/useConstrutoras';
-import { ConstrutorCard } from '@/components/ConstrutorCard';
 import { EmptyState } from '@/components/EmptyState';
-import { SearchBar } from '@/components/SearchBar';
-import { SkeletonCard } from '@/components/SkeletonCard';
+import { SkeletonRow } from '@/components/SkeletonCard';
+import { getEmpresaNome, isNew } from '@/utils/format';
+import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import type { Empresa } from '@/types';
+
+function ConstrutorCard({ empresa }: { empresa: Empresa }) {
+  const router = useRouter();
+  const nome = getEmpresaNome(empresa);
+  const logo = empresa.anexos?.find((a) => a.categoria === 'logo_empresa')?.link;
+  const nova = isNew(empresa.criado_em, 30);
+
+  function handlePress() {
+    router.push({
+      pathname: '/(tabs)/empreendimentos',
+      params: { empresa_id: empresa.id, empresa_nome: nome },
+    });
+  }
+
+  return (
+    <TouchableOpacity style={cardStyles.card} onPress={handlePress} activeOpacity={0.85}>
+      <View style={cardStyles.logoBox}>
+        {logo ? (
+          <Image source={logo} style={cardStyles.logo} contentFit="contain" cachePolicy="memory-disk" />
+        ) : (
+          <View style={cardStyles.logoPlaceholder}>
+            <Ionicons name="business-outline" size={26} color={Palette.textTertiary} />
+          </View>
+        )}
+      </View>
+      <View style={cardStyles.info}>
+        <Text style={cardStyles.nome} numberOfLines={2}>{nome}</Text>
+        {empresa._count?.empreendimentos != null && (
+          <Text style={cardStyles.count}>
+            {empresa._count.empreendimentos} empreendimento{empresa._count.empreendimentos !== 1 ? 's' : ''}
+          </Text>
+        )}
+        {empresa.regiao && (
+          <View style={cardStyles.regiao}>
+            <Ionicons name="location-outline" size={11} color={Palette.textTertiary} />
+            <Text style={cardStyles.regiaoText}>{empresa.regiao}</Text>
+          </View>
+        )}
+      </View>
+      {nova && (
+        <View style={cardStyles.novaBadge}>
+          <Text style={cardStyles.novaText}>Nova</Text>
+        </View>
+      )}
+      <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+    </TouchableOpacity>
+  );
+}
+
+const cardStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.lg,
+    marginBottom: 10,
+    padding: 14,
+    gap: 14,
+    ...Shadow.sm,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+  },
+  logoBox: {
+    width: 60,
+    height: 60,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surfaceVariant,
+  },
+  logo: { width: 60, height: 60 },
+  logoPlaceholder: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.surfaceVariant,
+  },
+  info: { flex: 1, gap: 3 },
+  nome: { fontSize: 15, fontWeight: '700', color: Palette.text },
+  count: { fontSize: 12, color: Palette.textTertiary },
+  regiao: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  regiaoText: { fontSize: 11, color: Palette.textTertiary },
+  novaBadge: {
+    backgroundColor: Palette.successBg,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  novaText: { fontSize: 11, fontWeight: '700', color: Palette.success },
+});
 
 export default function ConstutorasScreen() {
   const [search, setSearch] = useState('');
-
-  const { data, isLoading, refetch, isRefetching } = useConstrutoras({
-    nome_fantasia: search || undefined,
+  const debouncedSearch = useDebounce(search, 400);
+  const { data, isLoading, isError, refetch, isRefetching } = useConstrutoras({
+    nome_fantasia: debouncedSearch || undefined,
   });
 
-  const construtoras = data?.dados ?? [];
+  const construtoras: Empresa[] = data?.dados ?? [];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Construtoras</Text>
+        {construtoras.length > 0 && (
+          <Text style={styles.subtitle}>{construtoras.length} encontradas</Text>
+        )}
       </View>
 
-      <View style={styles.searchWrapper}>
-        <SearchBar placeholder="Buscar construtora..." onChangeText={setSearch} />
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={18} color={Palette.textTertiary} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar construtora..."
+          placeholderTextColor={Palette.textTertiary}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={Palette.textTertiary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {isLoading ? (
-        <View>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </View>
+        <View>{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</View>
       ) : (
         <FlatList
           data={construtoras}
@@ -48,16 +159,25 @@ export default function ConstutorasScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor="#1A56DB"
-              colors={['#1A56DB']}
+              tintColor={Palette.primary}
+              colors={[Palette.primary]}
             />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon="business-outline"
-              title="Nenhuma construtora encontrada"
-              message="Tente buscar por outro nome."
-            />
+            isError ? (
+              <EmptyState
+                icon="wifi-outline"
+                title="Erro de conexão"
+                message="Não foi possível carregar as construtoras."
+                action={{ label: 'Tentar novamente', onPress: () => refetch() }}
+              />
+            ) : (
+              <EmptyState
+                icon="business-outline"
+                title="Nenhuma construtora encontrada"
+                message="Tente buscar por outro nome."
+              />
+            )
           }
         />
       )}
@@ -66,24 +186,37 @@ export default function ConstutorasScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC' },
+  safe: { flex: 1, backgroundColor: Palette.bg },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    paddingTop: 8,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
+    fontSize: 30,
+    fontWeight: '900',
+    color: Palette.text,
+    letterSpacing: -0.8,
   },
-  searchWrapper: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
+  subtitle: { fontSize: 13, color: Palette.textTertiary, marginTop: 2 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: Palette.border,
   },
-  list: {
-    paddingTop: 4,
-    paddingBottom: 24,
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Palette.text,
+    padding: 0,
   },
+  list: { paddingTop: 4, paddingBottom: 32 },
 });

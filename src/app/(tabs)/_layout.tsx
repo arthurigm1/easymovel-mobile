@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Palette } from '@/constants/theme';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -11,24 +12,11 @@ interface TabConfig {
 }
 
 const TABS: TabConfig[] = [
-  {
-    name: 'empreendimentos',
-    title: 'Imóveis',
-    icon: 'home-outline',
-    iconActive: 'home',
-  },
-  {
-    name: 'construtoras',
-    title: 'Construtoras',
-    icon: 'business-outline',
-    iconActive: 'business',
-  },
-  {
-    name: 'busca',
-    title: 'Buscar',
-    icon: 'search-outline',
-    iconActive: 'search',
-  },
+  { name: 'inicio',          title: 'Início',      icon: 'home-outline',     iconActive: 'home' },
+  { name: 'empreendimentos', title: 'Imóveis',     icon: 'grid-outline',     iconActive: 'grid' },
+  { name: 'construtoras',    title: 'Construtoras',icon: 'business-outline', iconActive: 'business' },
+  { name: 'busca',           title: 'Buscar',      icon: 'search-outline',   iconActive: 'search' },
+  { name: 'perfil',          title: 'Perfil',      icon: 'person-outline',   iconActive: 'person' },
 ];
 
 export default function TabsLayout() {
@@ -36,19 +24,19 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#1A56DB',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor: Palette.primary,
+        tabBarInactiveTintColor: Palette.textTertiary,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: Palette.surface,
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
-          paddingTop: 4,
-          paddingBottom: 4,
-          height: 60,
+          borderTopColor: Palette.border,
+          paddingTop: 6,
+          paddingBottom: 6,
+          height: 64,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '700',
           marginTop: 2,
         },
       }}

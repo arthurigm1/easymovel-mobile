@@ -1,68 +1,153 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 
 function SkeletonLine({ width, height = 14 }: { width: `${number}%` | number; height?: number }) {
-  return <View style={[styles.line, { width, height, borderRadius: height / 2 }]} />;
+  return (
+    <View
+      style={[
+        styles.line,
+        { width, height, borderRadius: height / 2 },
+      ]}
+    />
+  );
 }
 
 export function SkeletonCard() {
-  const opacity = useRef(new Animated.Value(0.4)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: true,
+        }),
       ])
     );
     anim.start();
     return () => anim.stop();
-  }, [opacity]);
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 1],
+  });
 
   return (
     <Animated.View style={[styles.card, { opacity }]}>
       <View style={styles.image} />
       <View style={styles.body}>
-        <SkeletonLine width="60%" height={12} />
-        <SkeletonLine width="85%" height={18} />
-        <SkeletonLine width="70%" height={14} />
-        <View style={styles.row}>
-          <SkeletonLine width={60} height={12} />
-          <SkeletonLine width={60} height={12} />
-          <SkeletonLine width={60} height={12} />
+        <SkeletonLine width="55%" height={11} />
+        <SkeletonLine width="88%" height={20} />
+        <SkeletonLine width="68%" height={13} />
+        <View style={styles.chipRow}>
+          <SkeletonLine width={56} height={26} />
+          <SkeletonLine width={56} height={26} />
+          <SkeletonLine width={56} height={26} />
         </View>
+        <SkeletonLine width="40%" height={20} />
       </View>
     </Animated.View>
   );
 }
 
+export function SkeletonList({ count = 3 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} />
+      ))}
+    </>
+  );
+}
+
+export function SkeletonRow() {
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+
+  return (
+    <Animated.View style={[rowStyles.row, { opacity }]}>
+      <View style={rowStyles.square} />
+      <View style={rowStyles.lines}>
+        <View style={[rowStyles.line, { width: '60%' }]} />
+        <View style={[rowStyles.line, { width: '40%', height: 11 }]} />
+        <View style={[rowStyles.line, { width: '30%', height: 10 }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.lg,
+    marginBottom: 10,
+    padding: 14,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+  },
+  square: {
+    width: 60,
+    height: 60,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.border,
+  },
+  lines: { flex: 1, gap: 8 },
+  line: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Palette.border,
+  },
+});
+
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    ...Shadow.sm,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
   },
   image: {
-    height: 200,
-    backgroundColor: '#E2E8F0',
+    height: 210,
+    backgroundColor: Palette.surfaceVariant,
   },
   body: {
-    padding: 16,
+    padding: Spacing.lg,
     gap: 10,
   },
   line: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: Palette.border,
   },
-  row: {
+  chipRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 2,
   },
 });

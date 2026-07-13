@@ -1,121 +1,258 @@
 import { Image } from 'expo-image';
+import { memo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBadge } from './StatusBadge';
-import { formatCurrency, formatArea } from '@/utils/format';
+import { ProgressBar } from './ProgressBar';
+import {
+  getMainImage,
+  getEmpresaLogo,
+  getEmpresaNome,
+  formatCurrency,
+  formatAreaRange,
+  formatQuartosRange,
+  isNew,
+} from '@/utils/format';
+import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 import type { Empreendimento } from '@/types';
 
 interface Props {
   empreendimento: Empreendimento;
 }
 
-export function EmpreendimentoCard({ empreendimento: e }: Props) {
+export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendimento: e }: Props) {
   const router = useRouter();
-
-  const specs = [
-    e.quartos ? { icon: 'bed-outline' as const, label: `${e.quartos} qts` } : null,
-    e.area ? { icon: 'expand-outline' as const, label: formatArea(e.area)! } : null,
-    e.unidades_disponiveis
-      ? { icon: 'home-outline' as const, label: `${e.unidades_disponiveis} disp.` }
-      : null,
-  ].filter(Boolean) as { icon: keyof typeof Ionicons.glyphMap; label: string }[];
+  const mainImage = getMainImage(e);
+  const logoUrl = getEmpresaLogo(e.empresa);
+  const empresaNome = getEmpresaNome(e.empresa);
+  const quartosStr = formatQuartosRange(e.unidades_quartos);
+  const areaStr = formatAreaRange(e.unidades_area);
+  const vagasStr = formatQuartosRange(e.unidades_vagas);
+  const novo = isNew(e.primeira_publicacao_em);
 
   return (
     <TouchableOpacity
       style={styles.card}
-      activeOpacity={0.92}
+      activeOpacity={0.93}
       onPress={() => router.push(`/empreendimento/${e.id}`)}
     >
+      {/* ── Image area ── */}
       <View style={styles.imageWrapper}>
-        <Image
-          source={e.urlImagem ?? require('@/assets/images/icon.png')}
-          style={styles.image}
-          contentFit="cover"
-          transition={300}
-          cachePolicy="memory-disk"
+        {mainImage ? (
+          <Image
+            source={mainImage}
+            style={styles.image}
+            contentFit="cover"
+            transition={250}
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <View style={[styles.image, styles.imageFallback]}>
+            <Ionicons name="home-outline" size={44} color="#CBD5E1" />
+          </View>
+        )}
+
+        {/* Gradient overlay */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.55)']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0.4 }}
+          end={{ x: 0, y: 1 }}
         />
-        {e.destaque && (
-          <View style={styles.destaqueBadge}>
-            <Ionicons name="star" size={10} color="#F59E0B" />
-            <Text style={styles.destaqueText}>Destaque</Text>
-          </View>
-        )}
-        {e.status && (
-          <View style={styles.statusOverlay}>
-            <StatusBadge status={e.status} small />
-          </View>
-        )}
-      </View>
 
-      <View style={styles.body}>
-        {e.nomeConstrutora && (
-          <Text style={styles.construtora} numberOfLines={1}>
-            {e.nomeConstrutora}
-          </Text>
-        )}
+        {/* Top-left badges */}
+        <View style={styles.topBadgesLeft}>
+          {e.unidades_promocao && (
+            <View style={styles.promocaoBadge}>
+              <Ionicons name="pricetag" size={9} color="#fff" />
+              <Text style={styles.promocaoText}>Promoção</Text>
+            </View>
+          )}
+          {e.tipo_produto === 'loteamento' && (
+            <View style={styles.loteamentoBadge}>
+              <Text style={styles.loteamentoText}>Loteamento</Text>
+            </View>
+          )}
+          {e.tipo_produto === 'imovel-avulso' && (
+            <View style={styles.avulsoBadge}>
+              <Text style={styles.avulsoText}>Avulso</Text>
+            </View>
+          )}
+        </View>
 
-        <Text style={styles.nome} numberOfLines={2}>
-          {e.nomeEmpreendimento}
-        </Text>
+        {/* Top-right badges */}
+        <View style={styles.topBadges}>
+          {e.parceria_housi && (
+            <View style={styles.housiBadge}>
+              <Text style={styles.housiText}>HOUSI</Text>
+            </View>
+          )}
+          {e.destaque && (
+            <View style={styles.destaqueBadge}>
+              <Ionicons name="star" size={9} color="#F79009" />
+              <Text style={styles.destaqueText}>Destaque</Text>
+            </View>
+          )}
+          {novo && (
+            <View style={styles.novoBadge}>
+              <Text style={styles.novoText}>Novo</Text>
+            </View>
+          )}
+        </View>
 
-        {(e.bairro || e.cidade) && (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={13} color="#94A3B8" />
-            <Text style={styles.location} numberOfLines={1}>
-              {[e.bairro, e.cidade, e.uf].filter(Boolean).join(', ')}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.footer}>
-          <Text style={styles.price}>{formatCurrency(e.valor)}</Text>
-
-          {specs.length > 0 && (
-            <View style={styles.specs}>
-              {specs.map((spec) => (
-                <View key={String(spec.icon)} style={styles.spec}>
-                  <Ionicons name={spec.icon} size={12} color="#64748B" />
-                  <Text style={styles.specText}>{spec.label}</Text>
-                </View>
-              ))}
+        {/* Bottom of image: status + 100% vendido */}
+        <View style={styles.imageFooter}>
+          {e.status && <StatusBadge status={e.status} compact inverted />}
+          {(e.fracao_vendida ?? 0) >= 1 && (
+            <View style={styles.vendidoBadge}>
+              <Text style={styles.vendidoText}>100% Vendido</Text>
             </View>
           )}
         </View>
       </View>
+
+      {/* ── Card body ── */}
+      <View style={styles.body}>
+        {/* Company */}
+        <View style={styles.companyRow}>
+          {logoUrl ? (
+            <Image
+              source={logoUrl}
+              style={styles.logo}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={styles.logoPlaceholder}>
+              <Ionicons name="business" size={10} color={Palette.primary} />
+            </View>
+          )}
+          <Text style={styles.companyName} numberOfLines={1}>
+            {empresaNome}
+          </Text>
+        </View>
+
+        {/* Name */}
+        <Text style={styles.name} numberOfLines={2}>
+          {e.nome_empreendimento}
+        </Text>
+
+        {/* Location */}
+        {(e.bairro || e.cidade) && (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-sharp" size={12} color={Palette.primary} />
+            <Text style={styles.location} numberOfLines={1}>
+              {[e.bairro ?? e.bairro_comercial, e.cidade].filter(Boolean).join(', ')}
+            </Text>
+          </View>
+        )}
+
+        {/* Specs */}
+        {(quartosStr || areaStr || vagasStr || e.unidades_disponiveis != null) && (
+          <View style={styles.specsRow}>
+            {quartosStr && (
+              <View style={styles.specChip}>
+                <Ionicons name="bed-outline" size={11} color={Palette.textSecondary} />
+                <Text style={styles.specText}>{quartosStr} qts</Text>
+              </View>
+            )}
+            {areaStr && (
+              <View style={styles.specChip}>
+                <Ionicons name="expand-outline" size={11} color={Palette.textSecondary} />
+                <Text style={styles.specText}>{areaStr}</Text>
+              </View>
+            )}
+            {vagasStr && (
+              <View style={styles.specChip}>
+                <Ionicons name="car-outline" size={11} color={Palette.textSecondary} />
+                <Text style={styles.specText}>{vagasStr} vagas</Text>
+              </View>
+            )}
+            {e.unidades_disponiveis != null && (
+              <View style={styles.specChip}>
+                <Ionicons name="home-outline" size={11} color={Palette.textSecondary} />
+                <Text style={styles.specText}>{e.unidades_disponiveis} disp.</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Price */}
+        {e.valor && (
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>A partir de</Text>
+            <Text style={styles.price}>{formatCurrency(e.valor)}</Text>
+          </View>
+        )}
+
+        {/* Progress bar */}
+        {e.fracao_vendida != null && e.fracao_vendida > 0 && (
+          <ProgressBar value={e.fracao_vendida} />
+        )}
+      </View>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    ...Shadow.md,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
   },
   imageWrapper: {
     position: 'relative',
+    height: 210,
   },
   image: {
     width: '100%',
-    height: 200,
-    backgroundColor: '#F1F5F9',
+    height: '100%',
+    backgroundColor: Palette.borderLight,
   },
-  destaqueBadge: {
+  imageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.surfaceVariant,
+  },
+  topBadgesLeft: {
     position: 'absolute',
     top: 12,
     left: 12,
+    flexDirection: 'column',
+    gap: 5,
+    alignItems: 'flex-start',
+  },
+  topBadges: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  housiBadge: {
+    backgroundColor: Palette.text,
+    borderRadius: Radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  housiText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  destaqueBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: Radius.full,
     paddingHorizontal: 7,
     paddingVertical: 3,
     gap: 3,
@@ -123,29 +260,96 @@ const styles = StyleSheet.create({
   destaqueText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#B45309',
+    color: '#92400E',
   },
-  statusOverlay: {
+  novoBadge: {
+    backgroundColor: Palette.success,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  novoText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  promocaoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Palette.unitPromocao,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 3,
+  },
+  promocaoText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  loteamentoBadge: {
+    backgroundColor: Palette.success,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  loteamentoText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  avulsoBadge: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  avulsoText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  vendidoBadge: {
+    backgroundColor: Palette.textSecondary,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  vendidoText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  imageFooter: {
     position: 'absolute',
-    top: 12,
+    bottom: 12,
+    left: 12,
     right: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
   body: {
-    padding: 14,
+    padding: Spacing.lg,
+    gap: 8,
+  },
+  companyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
-  construtora: {
+  logo: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: Palette.borderLight,
+  },
+  logoPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: Palette.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  companyName: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#1A56DB',
+    fontWeight: '700',
+    color: Palette.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    flex: 1,
   },
-  nome: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 22,
+  name: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Palette.text,
+    lineHeight: 23,
+    letterSpacing: -0.3,
   },
   locationRow: {
     flexDirection: 'row',
@@ -153,30 +357,41 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   location: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 12,
+    color: Palette.textSecondary,
     flex: 1,
   },
-  footer: {
-    marginTop: 4,
+  specsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
   },
-  price: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  specs: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  spec: {
+  specChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: Palette.surfaceVariant,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   specText: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+    color: Palette.textSecondary,
+  },
+  priceRow: { gap: 0 },
+  priceLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Palette.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  price: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: Palette.text,
+    letterSpacing: -0.5,
   },
 });

@@ -1,43 +1,84 @@
+export interface AnexoItem {
+  id: string;
+  categoria: string;
+  link: string;
+  descricao?: string;
+  ordenacao?: number;
+}
+
+export interface EmpresaInfo {
+  id: string;
+  nome_mascara?: string;
+  nome_fantasia?: string;
+  razao_social?: string;
+  anexos?: AnexoItem[];
+  link_portal?: string;
+}
+
+export interface UnidadeItem {
+  id: string;
+  descricao?: string;
+  tipologia?: string;
+  area?: number;
+  area_externa?: number;
+  quant_quartos?: number;
+  quant_suites?: number;
+  quant_banheiros?: number;
+  quant_vagas?: number;
+  valor?: number;
+  status?: string;
+  bloco?: string;
+}
+
+export interface VideoItem {
+  id: string;
+  url_youtube?: string;
+  criado_em?: string;
+}
+
 export interface Empreendimento {
   id: string;
-  nomeEmpreendimento: string;
-  nomeConstrutora?: string;
-  nomeIncorporadora?: string;
+  nome_empreendimento: string;
+  empresa: EmpresaInfo;
+  finalidade?: string;
+  status?: string;
+  tipo_produto?: string;
   endereco?: string;
   numero?: string;
   bairro?: string;
+  bairro_comercial?: string;
   cidade?: string;
   uf?: string;
   latitude?: number;
   longitude?: number;
   descricao?: string;
-  status?: string;
-  finalidade?: string;
-  tipo_produto?: string;
-  tipoProduto?: string;
-  publicado?: boolean;
   destaque?: boolean;
+  publicado?: boolean;
   anuncio_pausado?: boolean;
-  pausado?: boolean;
-  promocao?: boolean;
-  urlImagem?: string;
-  logoConstrutora?: string;
-  quartos?: number;
-  area?: number;
-  valor?: number;
-  unidades_disponiveis?: number;
+  primeira_publicacao_em?: string;
+  parceria_housi?: boolean;
+  unidades_promocao?: boolean;
   fracao_vendida?: number;
-  primeiraPublicacao?: string;
-  empresa_id?: string;
-  ano_construcao?: string;
-  final_construcao?: string;
-  valor_condominio?: number;
+  unidades_disponiveis?: number;
+  valor?: string | number;
+  unidades_quartos?: { minimo: number; maximo: number };
+  unidades_area?: { minimo: number; maximo: number };
+  unidades_vagas?: { minimo: number; maximo: number };
+  unidades_banheiros?: { minimo: number; maximo: number };
   quant_andares?: number;
-  quant_blocos?: number;
+  quant_unidades?: number;
   quant_elevadores?: number;
-  anexos?: Anexo[];
-  unidades?: Unidade[];
-  comodidade_empreendimentos?: ComodidadeEmpreendimento[];
+  final_construcao?: string;
+  previsao_na_planta?: string;
+  valor_condominio?: number;
+  taxa_enxoval?: number;
+  nome_construtora?: string;
+  nome_projetista?: string;
+  telefone_responsavel_empreendimento?: string;
+  nome_responsavel_empreendimento?: string;
+  anexos?: AnexoItem[];
+  unidades?: UnidadeItem[];
+  videos?: VideoItem[];
 }
 
 export interface Empresa {
@@ -48,44 +89,8 @@ export interface Empresa {
   tipo?: string;
   regiao?: string;
   criado_em?: string;
-  anexos?: Anexo[];
+  anexos?: AnexoItem[];
   _count?: { empreendimentos: number };
-}
-
-export interface Anexo {
-  id: string;
-  categoria: string;
-  caminho_s3?: string;
-  bucket?: string;
-  nome_original?: string;
-  mimetype?: string;
-  ordenacao?: number;
-  url?: string;
-}
-
-export interface Unidade {
-  id: string;
-  descricao?: string;
-  status?: string;
-  tipologia?: string;
-  area?: number;
-  area_externa?: number;
-  quant_quartos?: number;
-  quant_banheiros?: number;
-  quant_suites?: number;
-  quant_vagas?: number;
-  valor?: number;
-  bloco?: string;
-}
-
-export interface Comodidade {
-  id: string;
-  nome: string;
-  icone?: string;
-}
-
-export interface ComodidadeEmpreendimento {
-  comodidade: Comodidade;
 }
 
 export interface ApiResponse<T> {
@@ -105,24 +110,41 @@ export interface PaginatedResponse<T> {
   };
 }
 
-export interface FiltrarEmpreendimentosParams {
-  pagina?: number;
-  empreendimento?: string;
-  localidade?: string;
-  construtora?: string;
-  tipo_imovel?: string;
+export interface FilterState {
+  search: string;
   status_construcao?: string;
+  tipo_imovel?: string;
+  tipologia?: string;
   quant_quartos?: string;
   quant_suites?: string;
   quant_vagas?: string;
-  tipologia?: string;
-  comodidades?: string;
   valor_min?: number;
   valor_max?: number;
   area_min?: number;
   area_max?: number;
   disponiveis?: boolean;
   regiao?: string;
+  empresa_id?: string;
+  empresa_nome?: string;
+  ordenar_por?: string;
+}
+
+export interface FiltrarEmpreendimentosParams {
+  pagina?: number;
+  empreendimento?: string;
+  status_construcao?: string;
+  tipo_imovel?: string;
+  quant_quartos?: string;
+  quant_suites?: string;
+  quant_vagas?: string;
+  tipologia?: string;
+  valor_min?: number;
+  valor_max?: number;
+  area_min?: number;
+  area_max?: number;
+  disponiveis?: boolean;
+  regiao?: string;
+  empresa_id?: string;
   ordenar_por?: string;
 }
 

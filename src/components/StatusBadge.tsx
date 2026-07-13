@@ -1,26 +1,52 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { Palette, Radius } from '@/constants/theme';
 
-const CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  'Pré-Lançamento': { bg: '#F3E8FF', text: '#7C3AED', label: 'Pré-Lançamento' },
-  'Lançamento': { bg: '#DBEAFE', text: '#1D4ED8', label: 'Lançamento' },
-  'Em Construção': { bg: '#FEF3C7', text: '#B45309', label: 'Em Construção' },
-  'Pronto para Morar': { bg: '#D1FAE5', text: '#065F46', label: 'Pronto' },
+interface StatusConfig {
+  bg: string;
+  text: string;
+  label: string;
+}
+
+const STATUS_MAP: Record<string, StatusConfig> = {
+  'pre-lancamento': { bg: Palette.statusPreLancamentoBg, text: Palette.statusPreLancamento, label: 'Pré-Lançamento' },
+  'Pré-Lançamento': { bg: Palette.statusPreLancamentoBg, text: Palette.statusPreLancamento, label: 'Pré-Lançamento' },
+  'pre lancamento': { bg: Palette.statusPreLancamentoBg, text: Palette.statusPreLancamento, label: 'Pré-Lançamento' },
+  'Lançamento':     { bg: Palette.statusLancamentoBg, text: Palette.statusLancamento, label: 'Lançamento' },
+  'Na Planta':      { bg: Palette.statusLancamentoBg, text: Palette.statusLancamento, label: 'Lançamento' },
+  'Em Construção':  { bg: Palette.statusEmConstrucaoBg, text: Palette.statusEmConstrucao, label: 'Em Construção' },
+  'Em construção':  { bg: Palette.statusEmConstrucaoBg, text: Palette.statusEmConstrucao, label: 'Em Construção' },
+  'Em Obra':        { bg: Palette.statusEmConstrucaoBg, text: Palette.statusEmConstrucao, label: 'Em Construção' },
+  'Pronto para Morar': { bg: Palette.statusProntoBg, text: Palette.statusPronto, label: 'Pronto' },
+  'Concluído':      { bg: Palette.statusProntoBg, text: Palette.statusPronto, label: 'Pronto' },
+  'Pronto':         { bg: Palette.statusProntoBg, text: Palette.statusPronto, label: 'Pronto' },
 };
-
-const FALLBACK = { bg: '#F1F5F9', text: '#475569' };
 
 interface Props {
   status?: string;
-  small?: boolean;
+  compact?: boolean;
+  inverted?: boolean;
 }
 
-export function StatusBadge({ status, small }: Props) {
-  const cfgFromMap = status ? CONFIG[status as keyof typeof CONFIG] : undefined;
-  const cfg = cfgFromMap ?? { ...FALLBACK, label: status ?? '' };
+export function StatusBadge({ status, compact, inverted }: Props) {
+  const cfg: StatusConfig = (status ? STATUS_MAP[status] : undefined) ?? {
+    bg: Palette.surfaceVariant,
+    text: Palette.textSecondary,
+    label: status ?? '',
+  };
+
+  if (inverted) {
+    return (
+      <View style={[styles.badge, compact && styles.compact, { backgroundColor: cfg.text }]}>
+        <Text style={[styles.text, compact && styles.compactText, { color: '#fff' }]}>
+          {cfg.label}
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.badge, { backgroundColor: cfg.bg }, small && styles.small]}>
-      <Text style={[styles.text, { color: cfg.text }, small && styles.smallText]}>
+    <View style={[styles.badge, compact && styles.compact, { backgroundColor: cfg.bg }]}>
+      <Text style={[styles.text, compact && styles.compactText, { color: cfg.text }]}>
         {cfg.label}
       </Text>
     </View>
@@ -29,21 +55,21 @@ export function StatusBadge({ status, small }: Props) {
 
 const styles = StyleSheet.create({
   badge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     alignSelf: 'flex-start',
   },
   text: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.2,
   },
-  small: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  compact: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  smallText: {
+  compactText: {
     fontSize: 10,
   },
 });

@@ -1,18 +1,27 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Palette, Radius, Shadow } from '@/constants/theme';
 
 interface Props {
   icon?: keyof typeof Ionicons.glyphMap;
   title?: string;
   message: string;
+  action?: { label: string; onPress: () => void };
 }
 
-export function EmptyState({ icon = 'search-outline', title, message }: Props) {
+export function EmptyState({ icon = 'search-outline', title, message, action }: Props) {
   return (
     <View style={styles.container}>
-      <Ionicons name={icon} size={52} color="#CBD5E1" />
+      <View style={styles.iconWrap}>
+        <Ionicons name={icon} size={36} color={Palette.primary} />
+      </View>
       {title && <Text style={styles.title}>{title}</Text>}
       <Text style={styles.message}>{message}</Text>
+      {action && (
+        <TouchableOpacity style={styles.btn} onPress={action.onPress} activeOpacity={0.85}>
+          <Text style={styles.btnText}>{action.label}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -24,18 +33,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 64,
     paddingHorizontal: 32,
-    gap: 12,
+    gap: 14,
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Palette.primaryMid,
+    marginBottom: 4,
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontWeight: '800',
+    color: Palette.text,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   message: {
     fontSize: 14,
-    color: '#64748B',
+    color: Palette.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 21,
+    fontWeight: '400',
+  },
+  btn: {
+    marginTop: 4,
+    backgroundColor: Palette.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    ...Shadow.sm,
+  },
+  btnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Palette.white,
   },
 });

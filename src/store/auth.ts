@@ -43,9 +43,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     const { api } = await import('@/services/api');
     const response = await api.post('/login', { email, senha: password });
-    const { accessToken, id, name } = response.data;
+    const { accessToken, id, name, empresa_id } = response.data;
 
-    const user: User = { id, email, name };
+    const user: User = { id, email, name, empresa_id };
 
     await Promise.all([
       SecureStore.setItemAsync(TOKEN_KEY, accessToken),

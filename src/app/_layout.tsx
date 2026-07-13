@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { Palette } from '@/constants/theme';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth';
@@ -30,7 +31,7 @@ function AuthGuard() {
     if (!isAuthenticated && !inLogin) {
       router.replace('/login');
     } else if (isAuthenticated && inLogin) {
-      router.replace('/(tabs)/empreendimentos');
+      router.replace('/(tabs)/inicio');
     }
   }, [isAuthenticated, isLoading, segments, router]);
 
@@ -47,7 +48,7 @@ export default function RootLayout() {
   if (isLoading) {
     return (
       <View style={styles.splash}>
-        <ActivityIndicator size="large" color="#1A56DB" />
+        <ActivityIndicator size="large" color={Palette.primary} />
       </View>
     );
   }
@@ -58,17 +59,7 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="empreendimento/[id]"
-          options={{
-            headerShown: true,
-            title: '',
-            headerBackTitle: 'Voltar',
-            headerTintColor: '#1A56DB',
-            headerShadowVisible: false,
-            headerStyle: { backgroundColor: '#F8FAFC' },
-          }}
-        />
+        <Stack.Screen name="empreendimento/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </QueryClientProvider>
@@ -80,6 +71,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Palette.bg,
   },
 });
