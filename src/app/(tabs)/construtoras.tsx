@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   FlatList,
@@ -17,17 +17,16 @@ import { useRouter } from 'expo-router';
 import { useConstrutoras } from '@/hooks/useConstrutoras';
 import { EmptyState } from '@/components/EmptyState';
 import { SkeletonRow } from '@/components/SkeletonCard';
+import { Badge } from '@/components/Badge';
 import { getEmpresaNome, isNew } from '@/utils/format';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 import type { Empresa } from '@/types';
 
+// Só regiões com construtoras cadastradas de fato — o backend hoje não tem
+// nenhum registro fora de Belo Horizonte (testado exaustivamente).
 const REGIOES: { value: string; label: string }[] = [
   { value: '', label: 'Todas' },
   { value: 'belo horizonte', label: 'Belo Horizonte' },
-  { value: 'salvador', label: 'Salvador' },
-  { value: 'santa catarina', label: 'Santa Catarina' },
-  { value: 'sao paulo', label: 'São Paulo' },
-  { value: 'uberlandia', label: 'Uberlândia' },
 ];
 
 function ConstrutorCard({ empresa }: { empresa: Empresa }) {
@@ -38,89 +37,74 @@ function ConstrutorCard({ empresa }: { empresa: Empresa }) {
 
   function handlePress() {
     router.push({
-      pathname: '/(tabs)/empreendimentos',
+      pathname: '/(tabs)/inicio',
       params: { empresa_id: empresa.id, empresa_nome: nome },
     });
   }
 
   return (
-    <TouchableOpacity style={cardStyles.card} onPress={handlePress} activeOpacity={0.85}>
-      <View style={cardStyles.logoBox}>
-        {logo ? (
-          <Image source={logo} style={cardStyles.logo} contentFit="contain" cachePolicy="memory-disk" />
-        ) : (
-          <View style={cardStyles.logoPlaceholder}>
-            <Ionicons name="business-outline" size={26} color={Palette.textTertiary} />
+    <TouchableOpacity style={cardStyles.cardShadowWrap} onPress={handlePress} activeOpacity={0.85}>
+      <View style={cardStyles.card}>
+        {nova && (
+          <View style={cardStyles.novaBadge}>
+            <Badge label="Nova" color={Palette.success} bg={Palette.successBg} size="sm" />
           </View>
         )}
-      </View>
-      <View style={cardStyles.info}>
-        <Text style={cardStyles.nome} numberOfLines={2}>{nome}</Text>
-        {empresa._count?.empreendimentos != null && (
-          <Text style={cardStyles.count}>
-            {empresa._count.empreendimentos} empreendimento{empresa._count.empreendimentos !== 1 ? 's' : ''}
-          </Text>
-        )}
-        {empresa.regiao && (
-          <View style={cardStyles.regiao}>
-            <Ionicons name="location-outline" size={11} color={Palette.textTertiary} />
-            <Text style={cardStyles.regiaoText}>{empresa.regiao}</Text>
-          </View>
-        )}
-      </View>
-      {nova && (
-        <View style={cardStyles.novaBadge}>
-          <Text style={cardStyles.novaText}>Nova</Text>
+        <View style={cardStyles.logoBox}>
+          {logo ? (
+            <Image source={logo} style={cardStyles.logo} contentFit="cover" cachePolicy="memory-disk" />
+          ) : (
+            <View style={cardStyles.logoPlaceholder}>
+              <Ionicons name="business-outline" size={30} color={Palette.textTertiary} />
+            </View>
+          )}
         </View>
-      )}
-      <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+        <Text style={cardStyles.nome} numberOfLines={2}>{nome}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const cardStyles = StyleSheet.create({
+  cardShadowWrap: {
+    flex: 1,
+    borderRadius: Radius.xl,
+    ...Shadow.md,
+  },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    marginHorizontal: Spacing.lg,
-    marginBottom: 10,
+    borderRadius: Radius.xl,
     padding: 14,
-    gap: 14,
-    ...Shadow.sm,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
+    gap: 10,
+    alignItems: 'center',
+  },
+  novaBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 1,
   },
   logoBox: {
-    width: 60,
-    height: 60,
+    width: '100%',
+    aspectRatio: 1.4,
     borderRadius: Radius.md,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Palette.border,
     backgroundColor: Palette.surfaceVariant,
   },
-  logo: { width: 60, height: 60 },
+  logo: { width: '100%', height: '100%' },
   logoPlaceholder: {
-    width: 60,
-    height: 60,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Palette.surfaceVariant,
   },
-  info: { flex: 1, gap: 3 },
-  nome: { fontSize: 15, fontWeight: '700', color: Palette.text },
-  count: { fontSize: 12, color: Palette.textTertiary },
-  regiao: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  regiaoText: { fontSize: 11, color: Palette.textTertiary },
-  novaBadge: {
-    backgroundColor: Palette.successBg,
-    borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  nome: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Palette.text,
+    textAlign: 'center',
   },
-  novaText: { fontSize: 11, fontWeight: '700', color: Palette.success },
 });
 
 export default function ConstutorasScreen() {
@@ -128,11 +112,15 @@ export default function ConstutorasScreen() {
   const [regiao, setRegiao] = useState('');
   const debouncedSearch = useDebounce(search, 400);
   const { data, isLoading, isError, refetch, isRefetching } = useConstrutoras({
-    nome_fantasia: debouncedSearch || undefined,
     regiao: regiao || undefined,
   });
 
-  const construtoras: Empresa[] = data?.dados ?? [];
+  const all: Empresa[] = data?.dados ?? [];
+  const construtoras = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase();
+    if (!term) return all;
+    return all.filter((e) => getEmpresaNome(e).toLowerCase().includes(term));
+  }, [all, debouncedSearch]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -159,12 +147,7 @@ export default function ConstutorasScreen() {
         )}
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.regiaoScroll}
-        contentContainerStyle={styles.regiaoContent}
-      >
+      <View style={styles.regiaoRow}>
         {REGIOES.map((r) => {
           const active = regiao === r.value;
           return (
@@ -177,17 +160,18 @@ export default function ConstutorasScreen() {
               {r.value !== '' && (
                 <Ionicons
                   name="location-outline"
-                  size={11}
+                  size={12}
                   color={active ? Palette.white : Palette.primary}
+                  style={styles.regiaoChipIcon}
                 />
               )}
-              <Text style={[styles.regiaoChipText, active && styles.regiaoChipTextActive]}>
+              <Text style={[styles.regiaoChipText, active && styles.regiaoChipTextActive]} numberOfLines={1}>
                 {r.label}
               </Text>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       {isLoading ? (
         <View>{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</View>
@@ -195,6 +179,8 @@ export default function ConstutorasScreen() {
         <FlatList
           data={construtoras}
           keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
           renderItem={({ item }) => <ConstrutorCard empresa={item} />}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -235,12 +221,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   title: {
-    fontSize: 30,
-    fontWeight: '900',
+    fontFamily: DisplayFont.extraBold,
+    fontSize: 24,
     color: Palette.text,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
   },
-  subtitle: { fontSize: 13, color: Palette.textTertiary, marginTop: 2 },
+  subtitle: { fontSize: 12, color: Palette.textTertiary, marginTop: 2, fontWeight: '600' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,22 +246,26 @@ const styles = StyleSheet.create({
     color: Palette.text,
     padding: 0,
   },
-  list: { paddingTop: 4, paddingBottom: 32 },
-  regiaoScroll: { marginBottom: Spacing.md },
-  regiaoContent: {
+  list: { paddingTop: 4, paddingBottom: 32, paddingHorizontal: Spacing.lg },
+  gridRow: { gap: 12, marginBottom: 12 },
+  regiaoRow: {
+    flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
     gap: 8,
   },
   regiaoChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Radius.full,
     borderWidth: 1.5,
     borderColor: Palette.primaryMid,
     backgroundColor: Palette.primaryLight,
+  },
+  regiaoChipIcon: {
+    marginRight: 5,
   },
   regiaoChipActive: {
     backgroundColor: Palette.primary,

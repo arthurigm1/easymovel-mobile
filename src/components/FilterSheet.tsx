@@ -10,7 +10,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import type { FilterState } from '@/types';
+import { useSugestoesFiltro } from '@/hooks/useSugestoesFiltro';
+import { SearchableSelect } from './SearchableSelect';
+import type { FilterState, SelectOption } from '@/types';
 
 const STATUS_OPTIONS = [
   { value: 'pre-lancamento', label: 'Pré-Lançamento', color: Palette.statusPreLancamento },
@@ -33,7 +35,7 @@ const TIPOLOGIA_OPTIONS = [
   'Apto. Tipo', 'Casa', 'Cobertura', 'Duplex', 'Loja', 'Lote', 'Sala', 'Terreno',
 ];
 
-const REGIAO_OPTIONS = [
+export const REGIAO_OPTIONS = [
   { value: 'belo horizonte', label: 'Belo Horizonte' },
   { value: 'salvador', label: 'Salvador' },
   { value: 'santa catarina', label: 'Santa Catarina' },
@@ -41,7 +43,7 @@ const REGIAO_OPTIONS = [
   { value: 'uberlandia', label: 'Uberlândia' },
 ];
 
-const ORDENAR_OPTIONS = [
+export const ORDENAR_OPTIONS = [
   { value: '', label: 'Automática' },
   { value: 'mais recentes primeiro', label: 'Mais recentes' },
   { value: 'menor valor da unidade', label: 'Menor preço' },
@@ -88,6 +90,7 @@ interface Props {
 
 export function FilterSheet({ visible, filters, onChange, onClose, onApply, onClear }: Props) {
   const insets = useSafeAreaInsets();
+  const { data: sugestoes, isLoading: sugestoesLoading } = useSugestoesFiltro(filters.regiao);
 
   function toggle(key: keyof FilterState, value: string | boolean | undefined) {
     onChange({
@@ -95,6 +98,18 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
       [key]: filters[key] === value ? undefined : value,
     });
   }
+
+  const bairroOptions: SelectOption[] =
+    sugestoes?.localidade.map((b) => ({ id: b.bairro_id, label: b.nome_bairro, group: b.cidade })) ?? [];
+  const construtoraOptions: SelectOption[] =
+    sugestoes?.construtora.map((c) => ({ id: c.construtora_id, label: c.construtora })) ?? [];
+  const comodidadeOptions: SelectOption[] =
+    sugestoes?.comodidades.map((c) => ({ id: c, label: c })) ?? [];
+  const enderecoOptions: SelectOption[] =
+    sugestoes?.enderecos.map((e) => ({ id: e, label: e })) ?? [];
+  const enderecoSelected: SelectOption[] = filters.endereco
+    ? [{ id: filters.endereco, label: filters.endereco }]
+    : [];
 
   return (
     <Modal
@@ -119,6 +134,20 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+          {/* Buscar */}
+          <SectionTitle title="Nome do empreendimento" />
+          <View style={styles.searchField}>
+            <Ionicons name="search-outline" size={16} color={Palette.textTertiary} />
+            <TextInput
+              style={styles.searchFieldInput}
+              value={filters.search}
+              onChangeText={(v) => onChange({ ...filters, search: v })}
+              placeholder="Ex: Mirante Paralela"
+              placeholderTextColor={Palette.textTertiary}
+              returnKeyType="search"
+            />
+          </View>
+
           {/* Região */}
           <SectionTitle title="Região" />
           <View style={styles.chipRow}>
@@ -131,6 +160,40 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
               />
             ))}
           </View>
+
+          {/* Bairro */}
+          <SectionTitle title="Bairros" />
+          <SearchableSelect
+            label="Bairros"
+            placeholder="Pesquise"
+            options={bairroOptions}
+            selected={filters.bairros ?? []}
+            onChange={(sel) => onChange({ ...filters, bairros: sel })}
+            loading={sugestoesLoading}
+          />
+
+          {/* Avenida/Rua */}
+          <SectionTitle title="Avenida/Rua" />
+          <SearchableSelect
+            label="Avenida/Rua"
+            placeholder="Pesquise"
+            options={enderecoOptions}
+            selected={enderecoSelected}
+            onChange={(sel) => onChange({ ...filters, endereco: sel[0]?.label })}
+            multi={false}
+            loading={sugestoesLoading}
+          />
+
+          {/* Construtora */}
+          <SectionTitle title="Construtoras" />
+          <SearchableSelect
+            label="Construtoras"
+            placeholder="Pesquise"
+            options={construtoraOptions}
+            selected={filters.construtoras ?? []}
+            onChange={(sel) => onChange({ ...filters, construtoras: sel })}
+            loading={sugestoesLoading}
+          />
 
           {/* Tipo */}
           <SectionTitle title="Tipo de Imóvel" />
@@ -267,6 +330,17 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
             </View>
           </View>
 
+          {/* Comodidades */}
+          <SectionTitle title="Comodidades" />
+          <SearchableSelect
+            label="Comodidades"
+            placeholder="Pesquise"
+            options={comodidadeOptions}
+            selected={(filters.comodidades ?? []).map((c) => ({ id: c, label: c }))}
+            onChange={(sel) => onChange({ ...filters, comodidades: sel.map((s) => s.label) })}
+            loading={sugestoesLoading}
+          />
+
           {/* Disponíveis */}
           <SectionTitle title="Disponibilidade" />
           <TouchableOpacity
@@ -368,6 +442,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+  },
+  searchFieldInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Palette.text,
+    padding: 0,
   },
   chip: {
     paddingHorizontal: 14,

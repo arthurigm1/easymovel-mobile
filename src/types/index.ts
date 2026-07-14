@@ -142,7 +142,6 @@ export interface Empresa {
   regiao?: string;
   criado_em?: string;
   anexos?: AnexoItem[];
-  _count?: { empreendimentos: number };
 }
 
 export interface ApiResponse<T> {
@@ -162,6 +161,12 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface SelectOption {
+  id: string;
+  label: string;
+  group?: string;
+}
+
 export interface FilterState {
   search: string;
   status_construcao?: string;
@@ -179,6 +184,18 @@ export interface FilterState {
   empresa_id?: string;
   empresa_nome?: string;
   ordenar_por?: string;
+  bairros?: SelectOption[];
+  construtoras?: SelectOption[];
+  comodidades?: string[];
+  endereco?: string;
+}
+
+export interface SugestoesFiltro {
+  empreendimento: string[];
+  localidade: { bairro_id: string; nome_bairro: string; cidade: string }[];
+  construtora: { construtora: string; construtora_id: string }[];
+  comodidades: string[];
+  enderecos: string[];
 }
 
 export interface FiltrarEmpreendimentosParams {
@@ -198,6 +215,10 @@ export interface FiltrarEmpreendimentosParams {
   regiao?: string;
   empresa_id?: string;
   ordenar_por?: string;
+  bairro_id?: string[];
+  construtora?: string[];
+  comodidades?: string[];
+  endereco?: string;
 }
 
 export interface User {
@@ -205,4 +226,8 @@ export interface User {
   email: string;
   name: string;
   empresa_id?: string;
+  celular?: string;
+  regiao?: string;
+  link_foto?: string;
+  receber_notificacao?: boolean;
 }

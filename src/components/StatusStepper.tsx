@@ -1,54 +1,17 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Palette, Radius } from '@/constants/theme';
-
-type Stage = {
-  key: string[];
-  label: string;
-  shortLabel: string;
-  color: string;
-};
-
-const STAGES: Stage[] = [
-  {
-    key: ['pre-lancamento', 'Pré-Lançamento', 'pre lancamento'],
-    label: 'Pré-Lançamento',
-    shortLabel: 'Pré',
-    color: Palette.statusPreLancamento,
-  },
-  {
-    key: ['Lançamento', 'Na Planta'],
-    label: 'Lançamento',
-    shortLabel: 'Lanç.',
-    color: Palette.statusLancamento,
-  },
-  {
-    key: ['Em Construção', 'Em construção', 'Em Obra'],
-    label: 'Em Construção',
-    shortLabel: 'Obras',
-    color: Palette.statusEmConstrucao,
-  },
-  {
-    key: ['Pronto para Morar', 'Concluído', 'Pronto'],
-    label: 'Pronto',
-    shortLabel: 'Pronto',
-    color: Palette.statusPronto,
-  },
-];
-
-function getActiveIndex(status?: string): number {
-  if (!status) return -1;
-  return STAGES.findIndex((s) => s.key.includes(status));
-}
+import { CONSTRUCTION_STAGES, getConstructionStageIndex } from '@/constants/status';
 
 interface Props {
   status?: string;
 }
 
 export function StatusStepper({ status }: Props) {
-  const activeIdx = getActiveIndex(status);
+  const activeIdx = getConstructionStageIndex(status);
 
   if (activeIdx === -1) return null;
 
+  const STAGES = CONSTRUCTION_STAGES;
   const activeStage = STAGES[activeIdx];
 
   return (
@@ -79,7 +42,7 @@ export function StatusStepper({ status }: Props) {
                     isActive && { backgroundColor: activeStage.color, width: 16, height: 16 },
                     isDone && { backgroundColor: activeStage.color },
                     !isActive && !isDone && { backgroundColor: Palette.border },
-                    isActive && styles.dotActive,
+                    isActive && [styles.dotActive, { shadowColor: activeStage.color }],
                   ]}
                 >
                   {isActive && <View style={styles.dotInner} />}
@@ -101,7 +64,7 @@ export function StatusStepper({ status }: Props) {
       </View>
 
       {/* Current stage badge */}
-      <View style={[styles.badge, { backgroundColor: activeStage.color + '18', borderColor: activeStage.color + '40' }]}>
+      <View style={[styles.badge, { backgroundColor: activeStage.bg, borderColor: activeStage.color }]}>
         <View style={[styles.badgeDot, { backgroundColor: activeStage.color }]} />
         <Text style={[styles.badgeText, { color: activeStage.color }]}>
           {activeStage.label}

@@ -20,6 +20,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEmpreendimento } from '@/hooks/useEmpreendimentos';
+import { useAuthStore } from '@/store/auth';
 import { postAcesso, registrarInteresse } from '@/services/empreendimentos';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SalesTable } from '@/components/SalesTable';
@@ -40,7 +41,7 @@ import {
   getEmpresaNome,
   getMainImage,
 } from '@/utils/format';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -76,16 +77,78 @@ function InfoCard({ icon, label, value }: {
   );
 }
 
+function LoginPrompt({ message, compact }: { message: string; compact?: boolean }) {
+  const router = useRouter();
+  return (
+    <View style={[loginPromptStyles.wrap, compact && loginPromptStyles.wrapCompact]}>
+      <Ionicons name="lock-closed-outline" size={compact ? 16 : 22} color={Palette.textTertiary} />
+      <Text style={[loginPromptStyles.text, compact && loginPromptStyles.textCompact]}>{message}</Text>
+      <TouchableOpacity
+        style={[loginPromptStyles.btn, compact && loginPromptStyles.btnCompact]}
+        onPress={() => router.push('/login')}
+        activeOpacity={0.85}
+      >
+        <Text style={[loginPromptStyles.btnText, compact && loginPromptStyles.btnTextCompact]}>Entrar</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const loginPromptStyles = StyleSheet.create({
+  wrap: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 40,
+    paddingHorizontal: Spacing.xl,
+  },
+  wrapCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    gap: 8,
+  },
+  text: {
+    fontSize: 14,
+    color: Palette.textSecondary,
+    textAlign: 'center',
+  },
+  textCompact: {
+    flex: 1,
+    fontSize: 12.5,
+    textAlign: 'left',
+  },
+  btn: {
+    backgroundColor: Palette.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  btnCompact: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 0,
+  },
+  btnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Palette.white,
+  },
+  btnTextCompact: {
+    fontSize: 12.5,
+  },
+});
+
 const infoStyles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     padding: 14,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
+    ...Shadow.xs,
     flex: 1,
     minWidth: '47%',
   },
@@ -104,6 +167,7 @@ const infoStyles = StyleSheet.create({
 export default function EmpreendimentoDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -115,6 +179,8 @@ export default function EmpreendimentoDetail() {
   const [plantasLightboxIndex, setPlantasLightboxIndex] = useState(0);
   const [plantasLightboxVisible, setPlantasLightboxVisible] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [comodidadesExpanded, setComodidadesExpanded] = useState(false);
 
   function openLightbox(index: number) {
     setLightboxIndex(index);
@@ -349,6 +415,10 @@ export default function EmpreendimentoDetail() {
       : null,
   ].filter(Boolean) as typeof infoCards;
 
+  const KEY_LABELS = new Set(['Quartos', 'Área', 'Vagas', 'Banheiros']);
+  const keyInfoCards = infoCards.filter((c) => KEY_LABELS.has(c.label));
+  const restInfoCards = infoCards.filter((c) => !KEY_LABELS.has(c.label));
+
   const documentos = getDocumentos(e);
 
   const unitCount = e.unidades?.length ?? 0;
@@ -421,30 +491,23 @@ export default function EmpreendimentoDetail() {
             <Ionicons name="share-outline" size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Hero footer: status badges + photo count */}
+          {/* Hero footer: status badge (1 selo prioritário) + photo count */}
           <View style={styles.heroFooter}>
             <View style={styles.heroBadgesLeft}>
-              {e.status && <StatusBadge status={e.status} inverted />}
-              {e.unidades_promocao && (
-                <View style={styles.heroPill}>
-                  <Ionicons name="pricetag" size={11} color="#fff" />
-                  <Text style={styles.heroPillText}>Promoção</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.heroBadgesRight}>
-              {(e.fracao_vendida ?? 0) >= 1 && (
+              {(e.fracao_vendida ?? 0) >= 1 ? (
                 <View style={[styles.heroPill, { backgroundColor: Palette.textSecondary }]}>
                   <Text style={styles.heroPillText}>100% Vendido</Text>
                 </View>
-              )}
-              {photos.length > 1 && (
-                <View style={styles.photoPill}>
-                  <Ionicons name="images-outline" size={13} color="#fff" />
-                  <Text style={styles.photoPillText}>{photos.length} fotos</Text>
-                </View>
+              ) : (
+                e.status && <StatusBadge status={e.status} inverted />
               )}
             </View>
+            {photos.length > 1 && (
+              <View style={styles.photoPill}>
+                <Ionicons name="images-outline" size={13} color="#fff" />
+                <Text style={styles.photoPillText}>{photos.length} fotos</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -551,7 +614,15 @@ export default function EmpreendimentoDetail() {
               {/* Price highlight */}
               {e.valor && (
                 <View style={styles.priceCard}>
-                  <Text style={styles.priceLabel}>A partir de</Text>
+                  <View style={styles.priceLabelRow}>
+                    <Text style={styles.priceLabel}>A partir de</Text>
+                    {e.unidades_promocao && (
+                      <View style={styles.promoTag}>
+                        <Ionicons name="pricetag" size={10} color={Palette.white} />
+                        <Text style={styles.promoTagText}>Promoção</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.priceValue}>{formatCurrency(e.valor)}</Text>
                   {e.fracao_vendida != null && e.fracao_vendida > 0 && (
                     <View style={styles.progressWrapper}>
@@ -571,12 +642,37 @@ export default function EmpreendimentoDetail() {
                 </View>
               )}
 
-              {/* Info cards grid */}
-              {infoCards.length > 0 && (
+              {/* Info cards: fatos-chave sempre visíveis + resto atrás de "Ver mais detalhes" */}
+              {keyInfoCards.length > 0 && (
                 <View style={styles.infoGrid}>
-                  {infoCards.map((card) => (
+                  {keyInfoCards.map((card) => (
                     <InfoCard key={card.label} {...card} />
                   ))}
+                </View>
+              )}
+              {restInfoCards.length > 0 && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={styles.detailsToggle}
+                    onPress={() => setDetailsExpanded((v) => !v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.detailsToggleText}>
+                      {detailsExpanded ? 'Ver menos detalhes' : `Ver mais detalhes (${restInfoCards.length})`}
+                    </Text>
+                    <Ionicons
+                      name={detailsExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color={Palette.primary}
+                    />
+                  </TouchableOpacity>
+                  {detailsExpanded && (
+                    <View style={styles.infoGrid}>
+                      {restInfoCards.map((card) => (
+                        <InfoCard key={card.label} {...card} />
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -610,39 +706,32 @@ export default function EmpreendimentoDetail() {
                 );
               })() : null}
 
-              {/* Comodidades */}
+              {/* Comodidades — lista única, limitada por padrão */}
               {e.comodidade_empreendimentos && e.comodidade_empreendimentos.length > 0 && (() => {
-                const byCategory: Record<string, string[]> = {};
-                for (const c of e.comodidade_empreendimentos) {
-                  const cat = c.comodidade.categoria ?? 'Outros';
-                  if (!byCategory[cat]) byCategory[cat] = [];
-                  byCategory[cat].push(c.comodidade.descricao);
-                }
-                const catIcon: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-                  'Esporte e Lazer': 'fitness-outline',
-                  'Segurança':       'shield-checkmark-outline',
-                  'Facilidades':     'star-outline',
-                };
+                const all = e.comodidade_empreendimentos.map((c) => c.comodidade.descricao);
+                const LIMIT = 8;
+                const visible = comodidadesExpanded ? all : all.slice(0, LIMIT);
+                const hidden = all.length - visible.length;
                 return (
                   <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>
-                      Comodidades ({e.comodidade_empreendimentos.length})
-                    </Text>
-                    {Object.entries(byCategory).map(([cat, items]) => (
-                      <View key={cat} style={styles.comodidadeGroup}>
-                        <View style={styles.comodidadeGroupHeader}>
-                          <Ionicons name={catIcon[cat] ?? 'ellipse-outline'} size={14} color={Palette.primary} />
-                          <Text style={styles.comodidadeGroupLabel}>{cat}</Text>
+                    <Text style={styles.sectionTitle}>Comodidades ({all.length})</Text>
+                    <View style={styles.comodidadeChips}>
+                      {visible.map((item) => (
+                        <View key={item} style={styles.comodidadeChip}>
+                          <Text style={styles.comodidadeChipText}>{item}</Text>
                         </View>
-                        <View style={styles.comodidadeChips}>
-                          {items.map((item) => (
-                            <View key={item} style={styles.comodidadeChip}>
-                              <Text style={styles.comodidadeChipText}>{item}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    ))}
+                      ))}
+                    </View>
+                    {hidden > 0 && (
+                      <TouchableOpacity
+                        style={styles.descToggle}
+                        onPress={() => setComodidadesExpanded(true)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.descToggleText}>Ver todas (+{hidden})</Text>
+                        <Ionicons name="chevron-down" size={14} color={Palette.primary} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })()}
@@ -661,17 +750,23 @@ export default function EmpreendimentoDetail() {
                           <View style={styles.contactAvatar}>
                             <Ionicons name="person" size={20} color={Palette.primary} />
                           </View>
-                          <View style={styles.contactInfo}>
-                            {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
-                            <Text style={styles.contactPhone}>{fmtPhone}</Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.contactWhatsApp}
-                            onPress={() => Linking.openURL(`https://wa.me/${waNum}?text=${msg}`)}
-                            activeOpacity={0.85}
-                          >
-                            <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-                          </TouchableOpacity>
+                          {isAuthenticated ? (
+                            <>
+                              <View style={styles.contactInfo}>
+                                {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
+                                <Text style={styles.contactPhone}>{fmtPhone}</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={styles.contactWhatsApp}
+                                onPress={() => Linking.openURL(`https://wa.me/${waNum}?text=${msg}`)}
+                                activeOpacity={0.85}
+                              >
+                                <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+                              </TouchableOpacity>
+                            </>
+                          ) : (
+                            <LoginPrompt message="Entre para ver o telefone" compact />
+                          )}
                         </View>
                       );
                     })}
@@ -905,7 +1000,11 @@ export default function EmpreendimentoDetail() {
           {/* ── TAB: Tabela de Vendas ── */}
           {activeTab === 'tabela' && (
             <View style={styles.tab_content}>
-              <SalesTable units={e.unidades ?? []} varios_blocos={e.varios_blocos} />
+              {isAuthenticated ? (
+                <SalesTable units={e.unidades ?? []} varios_blocos={e.varios_blocos} />
+              ) : (
+                <LoginPrompt message="Entre na sua conta para ver a tabela de vendas com preços e disponibilidade de cada unidade." />
+              )}
             </View>
           )}
 
@@ -1115,8 +1214,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   name: {
+    fontFamily: DisplayFont.extraBold,
     fontSize: 24,
-    fontWeight: '900',
     color: Palette.text,
     lineHeight: 30,
     letterSpacing: -0.5,
@@ -1200,14 +1299,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Palette.primaryMid,
   },
+  priceLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   priceLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: Palette.primaryDark,
   },
+  promoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Palette.unitPromocao,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  promoTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Palette.white,
+  },
   priceValue: {
+    fontFamily: DisplayFont.extraBold,
     fontSize: 28,
-    fontWeight: '900',
     color: Palette.primary,
     letterSpacing: -1,
   },
@@ -1243,6 +1361,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Palette.primary,
   },
+  detailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    paddingVertical: 12,
+    ...Shadow.xs,
+  },
+  detailsToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.primary,
+  },
   mapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1250,9 +1383,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: 14,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
-    ...Shadow.xs,
+    ...Shadow.sm,
   },
   mapIconWrap: {
     width: 42,
@@ -1280,8 +1411,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: 14,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
+    ...Shadow.xs,
   },
   contactAvatar: {
     width: 42,
@@ -1348,9 +1478,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
-    ...Shadow.xs,
+    ...Shadow.sm,
   },
 
   // Documents
@@ -1364,8 +1492,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.md,
     padding: 12,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
+    ...Shadow.xs,
   },
   docIconWrap: {
     width: 36,
@@ -1403,9 +1530,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     overflow: 'hidden',
     backgroundColor: Palette.surface,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
-    ...Shadow.sm,
+    ...Shadow.md,
   },
   videoThumbWrapper: {
     position: 'relative',

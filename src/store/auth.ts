@@ -13,10 +13,11 @@ interface AuthState {
   isLoading: boolean;
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  updateUser: (partial: Partial<User>) => Promise<void>;
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   user: null,
   isAuthenticated: false,
@@ -43,10 +44,20 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     const { api } = await import('@/services/api');
     const response = await api.post('/login', { email, senha: password });
-    // Backend returns: { sucesso, dados: { auth, token: "Bearer ...", usuario: { id, nome_completo, email, empresa_id } } }
+    // Backend retorna o usuário completo (menos a senha): nome_completo, celular,
+    // regiao, receber_notificacao, link_foto (computado a partir do anexo), etc.
     const { token, usuario } = response.data.dados as {
       token: string;
-      usuario: { id: string; nome_completo: string; email: string; empresa_id?: string };
+      usuario: {
+        id: string;
+        nome_completo: string;
+        email: string;
+        empresa_id?: string;
+        celular?: string;
+        regiao?: string;
+        link_foto?: string;
+        receber_notificacao?: boolean;
+      };
     };
 
     const user: User = {
@@ -54,6 +65,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       email: usuario.email,
       name: usuario.nome_completo,
       empresa_id: usuario.empresa_id,
+      celular: usuario.celular,
+      regiao: usuario.regiao,
+      link_foto: usuario.link_foto,
+      receber_notificacao: usuario.receber_notificacao,
     };
 
     await Promise.all([
@@ -63,6 +78,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     tokenManager.set(token);
     set({ token, user, isAuthenticated: true });
+  },
+
+  updateUser: async (partial: Partial<User>) => {
+    const current = get().user;
+    if (!current) return;
+    const user: User = { ...current, ...partial };
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    set({ user });
   },
 
   logout: () => {

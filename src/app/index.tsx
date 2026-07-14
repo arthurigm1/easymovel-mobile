@@ -1,9 +1,7 @@
 import { Redirect } from 'expo-router';
-import { useAuthStore } from '@/store/auth';
 
+// Navegação sem login é permitida — só pedimos login sob demanda
+// (tabela de vendas, telefone da construtora), não como portão de entrada.
 export default function Index() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  return (
-    <Redirect href={isAuthenticated ? '/(tabs)/empreendimentos' : '/login'} />
-  );
+  return <Redirect href="/(tabs)/inicio" />;
 }

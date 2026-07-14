@@ -36,7 +36,14 @@ export function formatQuartosRange(
 
 export function getEmpresaNome(empresa?: EmpresaInfo | null): string {
   if (!empresa) return '';
-  return empresa.nome_mascara ?? empresa.nome_fantasia ?? empresa.razao_social ?? '';
+  // nome_mascara/nome_fantasia às vezes vêm como string vazia (não null/undefined),
+  // então "??" sozinho não cai pro próximo campo — precisa checar string vazia também.
+  return (
+    (empresa.nome_mascara?.trim() || undefined) ??
+    (empresa.nome_fantasia?.trim() || undefined) ??
+    (empresa.razao_social?.trim() || undefined) ??
+    ''
+  );
 }
 
 export function getMainImage(empreendimento: Empreendimento): string | null {

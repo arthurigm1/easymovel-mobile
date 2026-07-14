@@ -1,18 +1,18 @@
 import '@/global.css';
 import { Platform } from 'react-native';
 
-// ─── Easymovel Design System ─────────────────────────────────────────────────
+// ─── Blow Design System ───────────────────────────────────────────────────────
 
 export const Palette = {
-  // Primary — Indigo 700 (confiança, tecnologia, premium)
-  primary:        '#4338CA',
-  primaryHover:   '#3730A3',
-  primaryDark:    '#312E81',
-  primaryLight:   '#EEF2FF',
-  primaryMid:     '#C7D2FE',
-  primarySubtle:  '#E0E7FF',
+  // Primary — Indigo/violeta editorial (paleta oficial Blow)
+  primary:        '#5457F0',
+  primaryHover:   '#4548D6',
+  primaryDark:    '#3A3DBF',
+  primaryLight:   '#EEEEFC',
+  primaryMid:     '#C7C8F5',
+  primarySubtle:  '#E4E4FB',
 
-  // Accent — Violet (diferenciação)
+  // Accent — Violeta (diferenciação, reservado a status)
   accent:         '#7C3AED',
   accentLight:    '#F5F3FF',
   accentMid:      '#DDD6FE',
@@ -20,9 +20,9 @@ export const Palette = {
   // Status da obra
   statusPreLancamento:    '#7C3AED',
   statusPreLancamentoBg:  '#F5F3FF',
-  statusLancamento:       '#4338CA',
-  statusLancamentoBg:     '#EEF2FF',
-  statusEmConstrucao:     '#D97706',
+  statusLancamento:       '#5457F0',
+  statusLancamentoBg:     '#EEEEFC',
+  statusEmConstrucao:     '#B45309',
   statusEmConstrucaoBg:   '#FFFBEB',
   statusPronto:           '#16A34A',
   statusProntoBg:         '#F0FDF4',
@@ -44,65 +44,65 @@ export const Palette = {
   info:            '#0284C7',
   infoBg:          '#F0F9FF',
 
-  // Neutros
-  bg:              '#F7F8FF',
-  bgAlt:           '#F1F4FE',
+  // Neutros — base editorial (quase-branco, texto quase-preto)
+  bg:              '#FDFDFE',
+  bgAlt:           '#F7F7FA',
   surface:         '#FFFFFF',
-  surfaceVariant:  '#F1F4FE',
+  surfaceVariant:  '#F4F4FA',
   surfaceOverlay:  '#FAFBFF',
 
-  border:          '#E4E7F2',
-  borderLight:     '#EEF1FB',
-  borderStrong:    '#CBD0E8',
-  borderFocus:     '#4338CA',
+  border:          '#E7E7EF',
+  borderLight:     '#EDEDF3',
+  borderStrong:    '#D5D5E0',
+  borderFocus:     '#5457F0',
 
-  text:            '#0F172A',
-  textSecondary:   '#475569',
-  textTertiary:    '#94A3B8',
-  textDisabled:    '#CBD5E1',
+  text:            '#16161D',
+  textSecondary:   '#4A4A57',
+  textTertiary:    '#87878F',
+  textDisabled:    '#B8B8C2',
   textInverse:     '#FFFFFF',
-  textBrand:       '#4338CA',
+  textBrand:       '#5457F0',
 
   white:           '#FFFFFF',
   black:           '#000000',
-  overlay:         'rgba(15, 23, 42, 0.6)',
-  overlayLight:    'rgba(15, 23, 42, 0.3)',
+  overlay:         'rgba(22, 22, 29, 0.6)',
+  overlayLight:    'rgba(22, 22, 29, 0.3)',
 } as const;
 
 export const Shadow = {
   none: {},
   xs: {
-    shadowColor: '#1E2A5C',
+    shadowColor: '#16161D',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
   sm: {
-    shadowColor: '#1E2A5C',
+    shadowColor: '#16161D',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
   md: {
-    shadowColor: '#1E2A5C',
+    shadowColor: '#16161D',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09,
+    shadowOpacity: 0.08,
     shadowRadius: 14,
     elevation: 4,
   },
   lg: {
-    shadowColor: '#4338CA',
+    shadowColor: '#5457F0',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.12,
     shadowRadius: 22,
     elevation: 8,
   },
   xl: {
-    shadowColor: '#1E2A5C',
+    shadowColor: '#16161D',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.10,
     shadowRadius: 32,
     elevation: 14,
   },
@@ -182,5 +182,18 @@ export const Fonts = Platform.select({
     mono: 'var(--font-mono)',
   },
 });
+
+// Fontes de destaque — usadas só em momentos de maior peso visual (título de
+// tela, preço, nome do app) pra fugir da fonte padrão do sistema. Texto
+// utilitário/pequeno continua na fonte nativa.
+// "serif" é a assinatura visual do app: nome do empreendimento em Source
+// Serif 4, dando o tom editorial/premium — igual à referência de design.
+export const DisplayFont = {
+  bold: 'InstrumentSans_700Bold',
+  extraBold: 'InstrumentSans_700Bold', // Instrument Sans só vai até 700
+  semiBold: 'InstrumentSans_600SemiBold',
+  serif: 'SourceSerif4_500Medium',
+  serifSemiBold: 'SourceSerif4_600SemiBold',
+} as const;
 
 export type ThemeColor = keyof typeof Palette;

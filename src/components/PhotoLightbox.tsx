@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Palette, Radius, Spacing } from '@/constants/theme';
 import type { AnexoItem } from '@/types';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -54,7 +55,7 @@ export function PhotoLightbox({ photos, initialIndex = 0, visible, onClose }: Pr
           onPress={onClose}
           hitSlop={12}
         >
-          <Ionicons name="close" size={22} color="#fff" />
+          <Ionicons name="close" size={22} color={Palette.white} />
         </TouchableOpacity>
 
         {/* Counter */}
@@ -128,15 +129,15 @@ export function PhotoLightbox({ photos, initialIndex = 0, visible, onClose }: Pr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Palette.black,
   },
   closeBtn: {
     position: 'absolute',
-    left: 16,
+    left: Spacing.lg,
     zIndex: 10,
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Radius.full,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   counterText: {
-    color: '#fff',
+    color: Palette.white,
     fontSize: 14,
     fontWeight: '600',
     opacity: 0.85,
@@ -171,11 +172,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
   },
   captionText: {
-    color: '#fff',
+    color: Palette.white,
     fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
@@ -193,11 +194,11 @@ const styles = StyleSheet.create({
   dot: {
     width: 5,
     height: 5,
-    borderRadius: 3,
+    borderRadius: Radius.full,
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dotActive: {
-    backgroundColor: '#fff',
+    backgroundColor: Palette.white,
     width: 16,
   },
 });

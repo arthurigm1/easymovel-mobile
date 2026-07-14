@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,14 +13,17 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
-import { Palette, Radius, Shadow } from '@/constants/theme';
+import { Palette, Radius, Shadow, DisplayFont } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { login } = useAuthStore();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const canGoBack = router.canGoBack();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,6 +43,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/inicio');
+      }
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { mensagem?: string } } })?.response?.data?.mensagem;
@@ -63,14 +72,25 @@ export default function LoginScreen() {
           colors={[Palette.primaryDark, Palette.primary]}
           start={{ x: 0.2, y: 0 }}
           end={{ x: 0.9, y: 1 }}
-          style={[styles.hero, { paddingTop: Math.max(insets.top + 40, 80) }]}
+          style={[styles.hero, { paddingTop: Math.max(insets.top + 24, 64) }]}
         >
+          {canGoBack && (
+            <TouchableOpacity
+              style={[styles.closeBtn, { top: insets.top + 8 }]}
+              onPress={() => router.back()}
+              hitSlop={10}
+            >
+              <Ionicons name="close" size={22} color={Palette.white} />
+            </TouchableOpacity>
+          )}
           <View style={styles.logoWrap}>
-            <View style={styles.logoInner}>
-              <Ionicons name="home" size={36} color={Palette.primary} />
-            </View>
+            <Image
+              source={require('@/assets/images/blow-logo.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
           </View>
-          <Text style={styles.appName}>Easymovel</Text>
+          <Text style={styles.appName}>Blow</Text>
           <Text style={styles.tagline}>Seu próximo lar começa aqui</Text>
         </LinearGradient>
 
@@ -154,6 +174,14 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity
+            style={styles.forgotBtn}
+            onPress={() => router.push('/esqueci-senha')}
+            hitSlop={6}
+          >
+            <Text style={styles.forgotText}>Esqueci minha senha</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.btn, loading && styles.btnDisabled]}
             onPress={handleLogin}
             disabled={loading}
@@ -187,23 +215,28 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: Radius.xl,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: Palette.white,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
+    ...Shadow.md,
   },
-  logoInner: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.lg,
-    backgroundColor: Palette.white,
+  logoImg: {
+    width: 52,
+    height: 52,
+  },
+  closeBtn: {
+    position: 'absolute',
+    left: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   appName: {
-    fontSize: 30,
-    fontWeight: '900',
+    fontFamily: DisplayFont.extraBold,
+    fontSize: 32,
     color: Palette.white,
     letterSpacing: -0.6,
   },
@@ -275,6 +308,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Palette.text,
     padding: 0,
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -12,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.primary,
   },
   btn: {
     backgroundColor: Palette.primary,

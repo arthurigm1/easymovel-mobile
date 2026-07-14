@@ -1,4 +1,6 @@
+import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { Palette } from '@/constants/theme';
 
@@ -13,9 +15,7 @@ interface TabConfig {
 
 const TABS: TabConfig[] = [
   { name: 'inicio',          title: 'Início',      icon: 'home-outline',     iconActive: 'home' },
-  { name: 'empreendimentos', title: 'Imóveis',     icon: 'grid-outline',     iconActive: 'grid' },
   { name: 'construtoras',    title: 'Construtoras',icon: 'business-outline', iconActive: 'business' },
-  { name: 'busca',           title: 'Buscar',      icon: 'search-outline',   iconActive: 'search' },
   { name: 'perfil',          title: 'Perfil',      icon: 'person-outline',   iconActive: 'person' },
 ];
 
@@ -27,13 +27,17 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Palette.primary,
         tabBarInactiveTintColor: Palette.textTertiary,
         tabBarStyle: {
-          backgroundColor: Palette.surface,
+          backgroundColor: Platform.OS === 'android' ? Palette.surface : 'transparent',
           borderTopWidth: 1,
           borderTopColor: Palette.border,
           paddingTop: 6,
           paddingBottom: 6,
           height: 64,
+          position: Platform.OS === 'ios' ? 'absolute' : undefined,
         },
+        tabBarBackground: Platform.OS === 'ios'
+          ? () => <BlurView intensity={80} tint="light" style={{ flex: 1 }} />
+          : undefined,
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '700',

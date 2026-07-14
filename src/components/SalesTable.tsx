@@ -1,19 +1,9 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { UNIT_STATUS as STATUS_CFG, getUnitStatus } from '@/constants/status';
 import { formatCurrency, formatArea } from '@/utils/format';
 import type { UnidadeItem } from '@/types';
-
-// Exact colors from frontend statusEmpreendimentoStyle
-const STATUS_CFG: Record<string, { bg: string; text: string; dot: string }> = {
-  Disponível:   { bg: '#D1FAE5', text: '#065F46', dot: '#18bb3c' },
-  Decorado:     { bg: '#EDE9FE', text: '#4C1D95', dot: '#9E77ED' },
-  Promoção:     { bg: '#DBEAFE', text: '#1E40AF', dot: '#127efc' },
-  Modelo:       { bg: '#FEF3C7', text: '#92400E', dot: '#F79009' },
-  Reservado:    { bg: '#FEF9C3', text: '#713F12', dot: '#e1ca00' },
-  Vendido:      { bg: '#F1F5F9', text: '#475569', dot: '#474a51' },
-  Indisponível: { bg: '#FEE2E2', text: '#991B1B', dot: '#dc0101' },
-};
 
 type BaseColKey = 'tipologia' | 'descricao' | 'area' | 'area_ext' | 'quartos' | 'suites' | 'banheiros' | 'vagas' | 'valor_m2' | 'valor' | 'status';
 type ColKey = BaseColKey | 'bloco';
@@ -75,7 +65,7 @@ function getCell(unit: UnidadeItem, key: ColKey): React.ReactNode {
     }
     case 'valor': return formatCurrency(unit.valor);
     case 'status': {
-      const cfg = unit.status ? (STATUS_CFG[unit.status] ?? { bg: Palette.surfaceVariant, text: Palette.textSecondary, dot: Palette.border }) : { bg: Palette.surfaceVariant, text: Palette.textSecondary, dot: Palette.border };
+      const cfg = getUnitStatus(unit.status);
       return (
         <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
           <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
