@@ -102,7 +102,9 @@ const loginPromptStyles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   wrapCompact: {
+    flex: 1,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 0,
     paddingHorizontal: 0,
@@ -1101,6 +1103,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   shareBtn: {
+    position: 'absolute',
+    right: 16,
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -1209,7 +1213,7 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 12,
     fontWeight: '700',
-    color: Palette.primary,
+    color: Palette.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

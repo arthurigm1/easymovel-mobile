@@ -99,6 +99,8 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
     });
   }
 
+  const empreendimentoOptions: SelectOption[] =
+    sugestoes?.empreendimento.map((nome) => ({ id: nome, label: nome })) ?? [];
   const bairroOptions: SelectOption[] =
     sugestoes?.localidade.map((b) => ({ id: b.bairro_id, label: b.nome_bairro, group: b.cidade })) ?? [];
   const construtoraOptions: SelectOption[] =
@@ -134,19 +136,16 @@ export function FilterSheet({ visible, filters, onChange, onClose, onApply, onCl
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
-          {/* Buscar */}
-          <SectionTitle title="Nome do empreendimento" />
-          <View style={styles.searchField}>
-            <Ionicons name="search-outline" size={16} color={Palette.textTertiary} />
-            <TextInput
-              style={styles.searchFieldInput}
-              value={filters.search}
-              onChangeText={(v) => onChange({ ...filters, search: v })}
-              placeholder="Ex: Mirante Paralela"
-              placeholderTextColor={Palette.textTertiary}
-              returnKeyType="search"
-            />
-          </View>
+          {/* Empreendimento */}
+          <SectionTitle title="Empreendimento" />
+          <SearchableSelect
+            label="Empreendimento"
+            placeholder="Pesquise"
+            options={empreendimentoOptions}
+            selected={filters.empreendimentos ?? []}
+            onChange={(sel) => onChange({ ...filters, empreendimentos: sel })}
+            loading={sugestoesLoading}
+          />
 
           {/* Região */}
           <SectionTitle title="Região" />
@@ -442,22 +441,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  searchField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1.5,
-    borderColor: Palette.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 11,
-  },
-  searchFieldInput: {
-    flex: 1,
-    fontSize: 14,
-    color: Palette.text,
-    padding: 0,
   },
   chip: {
     paddingHorizontal: 14,

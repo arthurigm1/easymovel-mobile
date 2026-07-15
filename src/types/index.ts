@@ -168,7 +168,6 @@ export interface SelectOption {
 }
 
 export interface FilterState {
-  search: string;
   status_construcao?: string;
   tipo_imovel?: string;
   tipologia?: string;
@@ -184,6 +183,7 @@ export interface FilterState {
   empresa_id?: string;
   empresa_nome?: string;
   ordenar_por?: string;
+  empreendimentos?: SelectOption[];
   bairros?: SelectOption[];
   construtoras?: SelectOption[];
   comodidades?: string[];
@@ -200,7 +200,7 @@ export interface SugestoesFiltro {
 
 export interface FiltrarEmpreendimentosParams {
   pagina?: number;
-  empreendimento?: string;
+  empreendimento?: string[];
   status_construcao?: string;
   tipo_imovel?: string;
   quant_quartos?: string;

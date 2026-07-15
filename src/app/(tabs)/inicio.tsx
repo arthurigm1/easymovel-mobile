@@ -22,7 +22,7 @@ import { SkeletonList } from '@/components/SkeletonCard';
 import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 import type { Empreendimento, FilterState } from '@/types';
 
-const EMPTY_FILTERS: FilterState = { search: '' };
+const EMPTY_FILTERS: FilterState = {};
 
 const CATEGORIES = [
   { icon: 'rocket-outline' as const, label: 'Pré-Lançamento', field: 'status_construcao' as const, value: 'pre-lancamento' },
@@ -84,7 +84,7 @@ export default function InicioScreen() {
     activeFilters.disponiveis ? '__disp__' : undefined,
     activeFilters.regiao,
     activeFilters.empresa_id,
-    activeFilters.search?.trim() ? '__search__' : undefined,
+    activeFilters.empreendimentos?.length ? '__empreendimentos__' : undefined,
     activeFilters.bairros?.length ? '__bairros__' : undefined,
     activeFilters.construtoras?.length ? '__construtoras__' : undefined,
     activeFilters.comodidades?.length ? '__comodidades__' : undefined,
@@ -93,7 +93,7 @@ export default function InicioScreen() {
 
   const { data, isLoading, isError, isFetchingNextPage, fetchNextPage, hasNextPage, refetch, isRefetching } =
     useEmpreendimentos({
-      empreendimento: activeFilters.search?.trim() || undefined,
+      empreendimento: activeFilters.empreendimentos?.map((e) => e.label),
       status_construcao: activeFilters.status_construcao,
       tipo_imovel: activeFilters.tipo_imovel,
       tipologia: activeFilters.tipologia,

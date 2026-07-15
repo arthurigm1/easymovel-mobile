@@ -34,6 +34,14 @@ export function formatQuartosRange(
   return `${range.minimo}–${range.maximo}`;
 }
 
+export function formatVagasRange(
+  range?: { minimo: number; maximo: number } | null
+): string | null {
+  if (!range || (range.minimo === 0 && range.maximo === 0)) return null;
+  if (range.minimo === range.maximo) return `${range.minimo}`;
+  return `${range.minimo}–${range.maximo}`;
+}
+
 export function getEmpresaNome(empresa?: EmpresaInfo | null): string {
   if (!empresa) return '';
   // nome_mascara/nome_fantasia às vezes vêm como string vazia (não null/undefined),
@@ -122,4 +130,53 @@ export function formatDate(dateStr?: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+const MESES_ABREV = [
+  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+  'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+];
+
+// "Abr/26" — igual ao formato usado pelo Órulo pra data de entrega.
+export function formatEntrega(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return `${MESES_ABREV[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+// "20 horas atrás" / "3 dias atrás" — pra selo de recência tipo Órulo.
+export function formatRelativeTime(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const then = new Date(dateStr).getTime();
+  if (isNaN(then)) return null;
+  const diffMs = Date.now() - then;
+  if (diffMs < 0) return null;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return minutes <= 1 ? 'Agora há pouco' : `${minutes} minutos atrás`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} ${months === 1 ? 'mês' : 'meses'} atrás`;
+  const years = Math.floor(months / 12);
+  return `${years} ${years === 1 ? 'ano' : 'anos'} atrás`;
+}
+
+// "R$ 13.617/m²" — preço a partir de dividido pela menor metragem, igual ao Órulo.
+export function formatPricePerM2(
+  valor?: string | number | null,
+  areaRange?: { minimo: number; maximo: number } | null
+): string | null {
+  const num = typeof valor === 'string' ? parseFloat(valor) : valor;
+  if (!num || isNaN(num) || !areaRange?.minimo) return null;
+  const perM2 = num / areaRange.minimo;
+  if (!isFinite(perM2) || perM2 <= 0) return null;
+  return `${new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(perM2)}/m²`;
 }

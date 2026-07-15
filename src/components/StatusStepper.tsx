@@ -62,14 +62,6 @@ export function StatusStepper({ status }: Props) {
           );
         })}
       </View>
-
-      {/* Current stage badge */}
-      <View style={[styles.badge, { backgroundColor: activeStage.bg, borderColor: activeStage.color }]}>
-        <View style={[styles.badgeDot, { backgroundColor: activeStage.color }]} />
-        <Text style={[styles.badgeText, { color: activeStage.color }]}>
-          {activeStage.label}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -121,24 +113,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     width: 40,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  badgeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: Radius.full,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
   },
 });
