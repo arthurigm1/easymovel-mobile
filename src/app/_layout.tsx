@@ -60,6 +60,7 @@ export default function RootLayout() {
       <Stack initialRouteName="index">
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="cadastro" options={{ headerShown: false }} />
         <Stack.Screen name="esqueci-senha" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="empreendimento/[id]" options={{ headerShown: false }} />

@@ -145,25 +145,6 @@ export function formatEntrega(dateStr?: string | null): string | null {
   return `${MESES_ABREV[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
 }
 
-// "20 horas atrás" / "3 dias atrás" — pra selo de recência tipo Órulo.
-export function formatRelativeTime(dateStr?: string | null): string | null {
-  if (!dateStr) return null;
-  const then = new Date(dateStr).getTime();
-  if (isNaN(then)) return null;
-  const diffMs = Date.now() - then;
-  if (diffMs < 0) return null;
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 60) return minutes <= 1 ? 'Agora há pouco' : `${minutes} minutos atrás`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} ${months === 1 ? 'mês' : 'meses'} atrás`;
-  const years = Math.floor(months / 12);
-  return `${years} ${years === 1 ? 'ano' : 'anos'} atrás`;
-}
-
 // "R$ 13.617/m²" — preço a partir de dividido pela menor metragem, igual ao Órulo.
 export function formatPricePerM2(
   valor?: string | number | null,

@@ -19,7 +19,7 @@ import { EmpreendimentoCard } from '@/components/EmpreendimentoCard';
 import { FilterSheet, REGIAO_OPTIONS, ORDENAR_OPTIONS } from '@/components/FilterSheet';
 import { EmptyState } from '@/components/EmptyState';
 import { SkeletonList } from '@/components/SkeletonCard';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 import type { Empreendimento, FilterState } from '@/types';
 
 const EMPTY_FILTERS: FilterState = {};
@@ -158,9 +158,29 @@ export default function InicioScreen() {
                 onPress={() => { setPendingFilters(activeFilters); setFilterVisible(true); }}
                 activeOpacity={0.7}
               >
-                <Image source={require('@/assets/images/blow-logo.png')} style={styles.logo} resizeMode="contain" />
-                <Text style={styles.regiaoText} numberOfLines={1}>{regiaoLabel}</Text>
-                <Ionicons name="chevron-down" size={15} color={Palette.text} />
+                <View style={styles.logoWrap}>
+                  <Image source={require('@/assets/images/blow-logo.png')} style={styles.logo} resizeMode="contain" />
+                </View>
+                <View style={styles.regiaoTexts}>
+                  <Text style={styles.regiaoEyebrow}>SUA REGIÃO</Text>
+                  <View style={styles.regiaoValueRow}>
+                    <Text style={styles.regiaoText} numberOfLines={1}>{regiaoLabel}</Text>
+                    <Ionicons name="chevron-down" size={16} color={Palette.textSecondary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.filtrosBtn}
+                onPress={() => { setPendingFilters(activeFilters); setFilterVisible(true); }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="options-outline" size={17} color={Palette.white} />
+                {activeCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{activeCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -174,28 +194,13 @@ export default function InicioScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Filtros */}
+            {/* Categorias rápidas */}
             <FlatList
               horizontal
               data={CATEGORIES}
               keyExtractor={(c) => c.value}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoryRow}
-              ListHeaderComponent={
-                <TouchableOpacity
-                  style={styles.filtrosChip}
-                  onPress={() => { setPendingFilters(activeFilters); setFilterVisible(true); }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="options-outline" size={14} color={Palette.text} />
-                  <Text style={styles.filtrosChipText}>Filtros</Text>
-                  {activeCount > 0 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{activeCount}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              }
               renderItem={({ item: cat }) => {
                 const active = activeFilters[cat.field] === cat.value;
                 return (
@@ -204,6 +209,11 @@ export default function InicioScreen() {
                     onPress={() => toggleCategory(cat.field, cat.value)}
                     activeOpacity={0.8}
                   >
+                    <Ionicons
+                      name={cat.icon}
+                      size={14}
+                      color={active ? Palette.white : Palette.primary}
+                    />
                     <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{cat.label}</Text>
                   </TouchableOpacity>
                 );
@@ -212,15 +222,17 @@ export default function InicioScreen() {
 
             <View style={styles.countRow}>
               {total != null ? (
-                <Text style={styles.countText}>{total} imóve{total !== 1 ? 'is' : 'l'}</Text>
+                <Text style={styles.countText}>
+                  <Text style={styles.countNumber}>{total}</Text> imóve{total !== 1 ? 'is' : 'l'} encontrado{total !== 1 ? 's' : ''}
+                </Text>
               ) : <View />}
               <TouchableOpacity
                 style={styles.sortBtn}
                 onPress={() => setSortVisible(true)}
                 activeOpacity={0.7}
               >
+                <Ionicons name="swap-vertical" size={13} color={Palette.textSecondary} />
                 <Text style={styles.sortBtnText}>{ordenarLabel}</Text>
-                <Ionicons name="chevron-down" size={12} color={Palette.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -296,30 +308,67 @@ const styles = StyleSheet.create({
   headerArea: {
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.lg,
+    backgroundColor: Palette.bg,
+    borderBottomLeftRadius: Radius.xl,
+    borderBottomRightRadius: Radius.xl,
+    ...Shadow.xs,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
   },
   regiaoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     flexShrink: 1,
   },
+  logoWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logo: {
-    width: 36,
-    height: 36,
+    width: 24,
+    height: 24,
+  },
+  regiaoTexts: {
+    flexShrink: 1,
+    gap: 1,
+  },
+  regiaoEyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Palette.textTertiary,
+    letterSpacing: 0.6,
+  },
+  regiaoValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   regiaoText: {
+    fontFamily: DisplayFont.bold,
     fontSize: 19,
-    fontWeight: '600',
     color: Palette.text,
     letterSpacing: -0.3,
     flexShrink: 1,
+  },
+  filtrosBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
   },
   countRow: {
     flexDirection: 'row',
@@ -328,18 +377,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   countText: {
-    fontSize: 12,
-    color: Palette.textTertiary,
+    fontSize: 13,
+    color: Palette.textSecondary,
+    fontWeight: '500',
+  },
+  countNumber: {
+    fontWeight: '800',
+    color: Palette.text,
   },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    borderWidth: 1.5,
+    borderColor: Palette.border,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   sortBtnText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: Palette.primary,
+    color: Palette.textSecondary,
   },
   sortBackdrop: {
     flex: 1,
@@ -382,21 +441,6 @@ const styles = StyleSheet.create({
     color: Palette.primary,
     fontWeight: '700',
   },
-  filtrosChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Palette.text,
-  },
-  filtrosChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.text,
-  },
   empresaBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -423,32 +467,41 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: Radius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Palette.border,
+    backgroundColor: Palette.surface,
   },
   categoryChipActive: {
-    borderColor: Palette.text,
+    borderColor: Palette.primary,
+    backgroundColor: Palette.primary,
+    ...Shadow.xs,
   },
   categoryText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Palette.textSecondary,
   },
-  categoryTextActive: { color: Palette.text, fontWeight: '600' },
+  categoryTextActive: { color: Palette.white, fontWeight: '700' },
 
   badge: {
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    backgroundColor: Palette.text,
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: Palette.white,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Palette.primary,
   },
-  badgeText: { fontSize: 9, fontWeight: '800', color: Palette.white },
+  badgeText: { fontSize: 9.5, fontWeight: '800', color: Palette.primary },
 
   skeletons: { paddingTop: 4 },
   list: { paddingTop: 4, paddingBottom: 32 },

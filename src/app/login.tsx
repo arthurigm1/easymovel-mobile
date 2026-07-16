@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,12 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
-import { Palette, Radius, Shadow, DisplayFont } from '@/constants/theme';
+import { AppInput } from '@/components/AppInput';
+import { AppButton } from '@/components/AppButton';
+import { Palette, Radius, Spacing, DisplayFont } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { login } = useAuthStore();
@@ -30,7 +29,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
 
   const passwordRef = useRef<TextInput>(null);
 
@@ -62,27 +60,21 @@ export default function LoginScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <TouchableOpacity
+        style={[styles.closeBtn, { top: insets.top + 8 }]}
+        onPress={() => (canGoBack ? router.back() : router.replace('/(tabs)/inicio'))}
+        hitSlop={10}
+      >
+        <Ionicons name="close" size={22} color={Palette.textSecondary} />
+      </TouchableOpacity>
+
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 56 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero ── */}
-        <LinearGradient
-          colors={[Palette.primaryDark, Palette.primary]}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={[styles.hero, { paddingTop: Math.max(insets.top + 24, 64) }]}
-        >
-          {canGoBack && (
-            <TouchableOpacity
-              style={[styles.closeBtn, { top: insets.top + 8 }]}
-              onPress={() => router.back()}
-              hitSlop={10}
-            >
-              <Ionicons name="close" size={22} color={Palette.white} />
-            </TouchableOpacity>
-          )}
+        {/* Logo */}
+        <View style={styles.brand}>
           <View style={styles.logoWrap}>
             <Image
               source={require('@/assets/images/blow-logo.png')}
@@ -91,11 +83,10 @@ export default function LoginScreen() {
             />
           </View>
           <Text style={styles.appName}>Blow</Text>
-          <Text style={styles.tagline}>Seu próximo lar começa aqui</Text>
-        </LinearGradient>
+        </View>
 
-        {/* ── Form card ── */}
-        <View style={styles.card}>
+        {/* Form */}
+        <View style={styles.form}>
           <Text style={styles.formTitle}>Entrar na sua conta</Text>
 
           {error ? (
@@ -105,73 +96,32 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          {/* Email */}
-          <View style={styles.field}>
-            <Text style={styles.label}>E-mail</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                focusedField === 'email' && styles.inputFocused,
-              ]}
-            >
-              <Ionicons
-                name="mail-outline"
-                size={18}
-                color={focusedField === 'email' ? Palette.primary : Palette.textTertiary}
-              />
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="seu@email.com"
-                placeholderTextColor={Palette.textDisabled}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="next"
-                onFocus={() => setFocusedField('email')}
-                onBlur={() => setFocusedField(null)}
-                onSubmitEditing={() => passwordRef.current?.focus()}
-              />
-            </View>
-          </View>
+          <AppInput
+            label="E-mail"
+            icon="mail-outline"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="seu@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
 
-          {/* Senha */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Senha</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                focusedField === 'password' && styles.inputFocused,
-              ]}
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={focusedField === 'password' ? Palette.primary : Palette.textTertiary}
-              />
-              <TextInput
-                ref={passwordRef}
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={Palette.textDisabled}
-                secureTextEntry={!showPassword}
-                returnKeyType="done"
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => setFocusedField(null)}
-                onSubmitEditing={handleLogin}
-              />
-              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color={Palette.textTertiary}
-                />
-              </Pressable>
-            </View>
-          </View>
+          <AppInput
+            ref={passwordRef}
+            label="Senha"
+            icon="lock-closed-outline"
+            iconRight={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            onIconRightPress={() => setShowPassword((v) => !v)}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+          />
 
           <TouchableOpacity
             style={styles.forgotBtn}
@@ -181,18 +131,20 @@ export default function LoginScreen() {
             <Text style={styles.forgotText}>Esqueci minha senha</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
+          <AppButton
+            label="Entrar"
             onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color={Palette.white} />
-            ) : (
-              <Text style={styles.btnText}>Entrar</Text>
-            )}
-          </TouchableOpacity>
+            loading={loading}
+            size="lg"
+            fullWidth
+          />
+
+          <View style={styles.signupRow}>
+            <Text style={styles.signupText}>Não tem conta?</Text>
+            <TouchableOpacity onPress={() => router.push('/cadastro')} hitSlop={6}>
+              <Text style={styles.signupLink}>Cadastre-se</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -203,67 +155,54 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Palette.bg },
   scroll: {
     flexGrow: 1,
-  },
-
-  // Hero
-  hero: {
-    alignItems: 'center',
-    paddingBottom: 52,
-    gap: 12,
-  },
-  logoWrap: {
-    width: 84,
-    height: 84,
-    borderRadius: Radius.xl,
-    backgroundColor: Palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadow.md,
-  },
-  logoImg: {
-    width: 52,
-    height: 52,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xxl,
   },
   closeBtn: {
     position: 'absolute',
-    left: 20,
+    left: 16,
+    zIndex: 10,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: Palette.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  brand: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.xxl,
+  },
+  logoWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: Radius.xxl,
+    backgroundColor: Palette.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  logoImg: {
+    width: 42,
+    height: 42,
+  },
   appName: {
     fontFamily: DisplayFont.extraBold,
-    fontSize: 32,
-    color: Palette.white,
-    letterSpacing: -0.6,
-  },
-  tagline: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
+    fontSize: 26,
+    color: Palette.text,
+    letterSpacing: -0.5,
   },
 
-  // Form card
-  card: {
-    backgroundColor: Palette.surface,
-    borderTopLeftRadius: Radius.xxxl,
-    borderTopRightRadius: Radius.xxxl,
-    flex: 1,
-    marginTop: -24,
-    paddingTop: 32,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    gap: 20,
-    ...Shadow.xl,
+  form: {
+    gap: Spacing.lg,
   },
   formTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontFamily: DisplayFont.bold,
+    fontSize: 19,
     color: Palette.text,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   errorBox: {
     flexDirection: 'row',
@@ -272,8 +211,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: 12,
     gap: 8,
-    borderWidth: 1,
-    borderColor: '#FECACA',
   },
   errorText: {
     fontSize: 13,
@@ -281,56 +218,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontWeight: '500',
   },
-  field: { gap: 7 },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.textSecondary,
-    letterSpacing: 0.1,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Palette.surfaceVariant,
-    borderWidth: 1.5,
-    borderColor: Palette.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 10,
-  },
-  inputFocused: {
-    borderColor: Palette.primary,
-    backgroundColor: Palette.primaryLight,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: Palette.text,
-    padding: 0,
-  },
   forgotBtn: {
     alignSelf: 'flex-end',
-    marginTop: -12,
+    marginTop: -8,
   },
   forgotText: {
     fontSize: 13,
     fontWeight: '700',
     color: Palette.primary,
   },
-  btn: {
-    backgroundColor: Palette.primary,
-    borderRadius: Radius.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
+  signupRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
     marginTop: 4,
-    ...Shadow.lg,
   },
-  btnDisabled: { opacity: 0.65 },
-  btnText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Palette.white,
-    letterSpacing: 0.2,
+  signupText: {
+    fontSize: 13.5,
+    color: Palette.textSecondary,
+    fontWeight: '500',
+  },
+  signupLink: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: Palette.primary,
   },
 });

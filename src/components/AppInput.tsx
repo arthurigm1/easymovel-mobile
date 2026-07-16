@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -20,15 +20,18 @@ interface Props extends Omit<TextInputProps, 'style'> {
   onIconRightPress?: () => void;
 }
 
-export function AppInput({
-  label,
-  error,
-  hint,
-  icon,
-  iconRight,
-  onIconRightPress,
-  ...rest
-}: Props) {
+export const AppInput = forwardRef(function AppInput(
+  {
+    label,
+    error,
+    hint,
+    icon,
+    iconRight,
+    onIconRightPress,
+    ...rest
+  }: Props,
+  ref: React.Ref<TextInput>
+) {
   const [focused, setFocused] = useState(false);
   const labelY = useRef(new Animated.Value(rest.value ? -22 : 0)).current;
   const labelScale = useRef(new Animated.Value(rest.value ? 0.8 : 1)).current;
@@ -86,6 +89,7 @@ export function AppInput({
         ) : null}
 
         <TextInput
+          ref={ref}
           style={[styles.input, icon && styles.inputWithIcon]}
           placeholderTextColor={Palette.textDisabled}
           onFocus={handleFocus}
@@ -115,7 +119,7 @@ export function AppInput({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper: { gap: 6 },

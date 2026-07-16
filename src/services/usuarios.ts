@@ -1,5 +1,22 @@
 import { api } from './api';
 
+export interface CriarUsuarioBody {
+  nome_completo: string;
+  celular: string;
+  email: string;
+  senha: string;
+  tipo_usuario: 'imobiliaria' | 'corretor_autonomo';
+  cnpj?: string;
+  cpf?: string;
+  creci?: string;
+  regiao?: string;
+}
+
+export async function criarUsuario(body: CriarUsuarioBody) {
+  const response = await api.post('/usuarios', body);
+  return response.data;
+}
+
 export interface AtualizarUsuarioBody {
   nome_completo?: string;
   celular?: string;

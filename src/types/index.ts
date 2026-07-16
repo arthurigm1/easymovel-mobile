@@ -140,6 +140,11 @@ export interface Empresa {
   razao_social?: string;
   tipo?: string;
   regiao?: string;
+  bairro?: string;
+  logradouro?: string;
+  numero?: string;
+  link_portal?: string;
+  celular?: string;
   criado_em?: string;
   anexos?: AnexoItem[];
 }

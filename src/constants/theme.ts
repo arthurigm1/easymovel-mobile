@@ -17,15 +17,17 @@ export const Palette = {
   accentLight:    '#F5F3FF',
   accentMid:      '#DDD6FE',
 
-  // Status da obra
-  statusPreLancamento:    '#7C3AED',
-  statusPreLancamentoBg:  '#F5F3FF',
+  // Status da obra — tons dentro da família do azul Blow, variando claridade
+  // (nunca cores "de longe", tipo laranja/vermelho/verde), pra manter uma
+  // identidade visual única e coerente em todo o app.
+  statusPreLancamento:    '#8B8FF0',
+  statusPreLancamentoBg:  '#F0F0FE',
   statusLancamento:       '#5457F0',
   statusLancamentoBg:     '#EEEEFC',
-  statusEmConstrucao:     '#B45309',
-  statusEmConstrucaoBg:   '#FFFBEB',
-  statusPronto:           '#16A34A',
-  statusProntoBg:         '#F0FDF4',
+  statusEmConstrucao:     '#3A3DBF',
+  statusEmConstrucaoBg:   '#E7E7FA',
+  statusPronto:           '#0891B2',
+  statusProntoBg:         '#E6F7FA',
 
   // Status de unidades
   unitDisponivel:  '#16A34A',

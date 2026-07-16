@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Badge } from './Badge';
+import { StatusBadge } from './StatusBadge';
 import { ProgressBar } from './ProgressBar';
 import {
   getMainImage,
@@ -15,10 +16,8 @@ import {
   formatQuartosRange,
   formatVagasRange,
   formatEntrega,
-  formatRelativeTime,
   formatPricePerM2,
 } from '@/utils/format';
-import { findConstructionStage } from '@/constants/status';
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 import type { Empreendimento } from '@/types';
 
@@ -39,12 +38,8 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
     .filter(Boolean)
     .join(', ');
 
-  // Coluna de meta à direita do preço, no estilo Órulo: entrega, situação, recência.
   const entregaStr = formatEntrega(e.final_construcao);
-  const relTimeStr = formatRelativeTime(e.primeira_publicacao_em);
   const pricePerM2Str = formatPricePerM2(e.valor, e.unidades_area);
-  const stage = findConstructionStage(e.status);
-  const hasMeta = !!(entregaStr || vendido || stage || relTimeStr);
 
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -83,6 +78,14 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
               <Badge label="DESTAQUE" color={Palette.primary} bg={Palette.white} size="sm" />
             </View>
           )}
+
+          <View style={styles.statusBadgeWrap}>
+            {vendido ? (
+              <Badge label="100% Vendido" inverted color={Palette.textSecondary} size="sm" />
+            ) : (
+              <StatusBadge status={e.status} inverted compact />
+            )}
+          </View>
 
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.25)']}
@@ -136,7 +139,7 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
 
           <View style={styles.divider} />
 
-          {(e.valor || hasMeta) && (
+          {(e.valor || entregaStr) && (
             <View style={[styles.bottomRow, !e.valor && styles.bottomRowMetaOnly]}>
               {e.valor ? (
                 <View style={styles.priceBlock}>
@@ -146,31 +149,10 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
                 </View>
               ) : null}
 
-              {hasMeta && (
+              {entregaStr && (
                 <View style={[styles.metaColumn, !e.valor && styles.metaColumnAlone]}>
-                  {entregaStr && (
-                    <Text style={styles.metaEntrega} numberOfLines={1}>
-                      Entrega: <Text style={styles.metaEntregaValue}>{entregaStr}</Text>
-                    </Text>
-                  )}
-                  {vendido ? (
-                    <View style={styles.metaStatusRow}>
-                      <Ionicons name="checkmark-circle" size={12} color={Palette.statusPronto} />
-                      <Text style={[styles.metaStatusText, { color: Palette.statusPronto }]}>
-                        100% VENDIDO
-                      </Text>
-                    </View>
-                  ) : stage ? (
-                    <View style={styles.metaStatusRow}>
-                      <View style={[styles.metaStatusDot, { backgroundColor: stage.color }]} />
-                      <Text style={[styles.metaStatusText, { color: stage.color }]} numberOfLines={1}>
-                        {stage.label.toUpperCase()}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {relTimeStr && (
-                    <Text style={styles.metaTime} numberOfLines={1}>{relTimeStr}</Text>
-                  )}
+                  <Text style={styles.metaEntregaLabel}>Entrega</Text>
+                  <Text style={styles.metaEntregaValue} numberOfLines={1}>{entregaStr}</Text>
                 </View>
               )}
             </View>
@@ -212,6 +194,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     left: 12,
+  },
+  statusBadgeWrap: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
   },
   imageFooter: {
     position: 'absolute',
@@ -314,38 +301,21 @@ const styles = StyleSheet.create({
   },
   metaColumn: {
     alignItems: 'flex-end',
-    gap: 3,
+    gap: 1,
   },
   metaColumnAlone: {
     alignItems: 'flex-start',
   },
-  metaEntrega: {
-    fontSize: 11,
+  metaEntregaLabel: {
+    fontSize: 10,
     color: Palette.textTertiary,
-    fontWeight: '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   metaEntregaValue: {
+    fontSize: 13,
     fontWeight: '700',
     color: Palette.textSecondary,
-  },
-  metaStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaStatusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  metaStatusText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  metaTime: {
-    fontSize: 10,
-    color: Palette.textDisabled,
-    fontWeight: '500',
   },
 });

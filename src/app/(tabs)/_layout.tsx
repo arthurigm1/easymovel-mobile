@@ -1,8 +1,9 @@
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { Palette } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Palette, Radius, Shadow } from '@/constants/theme';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -20,6 +21,8 @@ const TABS: TabConfig[] = [
 ];
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -27,21 +30,22 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Palette.primary,
         tabBarInactiveTintColor: Palette.textTertiary,
         tabBarStyle: {
-          backgroundColor: Platform.OS === 'android' ? Palette.surface : 'transparent',
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : Palette.surface,
           borderTopWidth: 1,
-          borderTopColor: Palette.border,
-          paddingTop: 6,
-          paddingBottom: 6,
-          height: 64,
+          borderTopColor: Palette.borderLight,
+          height: 56 + insets.bottom,
+          paddingTop: 8,
+          paddingBottom: insets.bottom,
           position: Platform.OS === 'ios' ? 'absolute' : undefined,
+          ...Shadow.xs,
         },
         tabBarBackground: Platform.OS === 'ios'
-          ? () => <BlurView intensity={80} tint="light" style={{ flex: 1 }} />
+          ? () => <BlurView intensity={90} tint="light" style={StyleSheet.absoluteFill} />
           : undefined,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: '700',
-          marginTop: 2,
+          marginTop: 3,
         },
       }}
     >
@@ -52,11 +56,10 @@ export default function TabsLayout() {
           options={{
             title: tab.title,
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={focused ? tab.iconActive : tab.icon}
-                size={22}
-                color={color}
-              />
+              <View style={styles.iconWrap}>
+                <Ionicons name={focused ? tab.iconActive : tab.icon} size={23} color={color} />
+                {focused && <View style={styles.indicator} />}
+              </View>
             ),
           }}
         />
@@ -64,3 +67,19 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  indicator: {
+    position: 'absolute',
+    top: -8,
+    width: 16,
+    height: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.primary,
+  },
+});

@@ -320,8 +320,6 @@ export default function EmpreendimentoDetail() {
     return result;
   }
   const contacts = buildContacts();
-  const phone = contacts[0]?.phone ?? '';
-  const hasWhatsApp = contacts.length > 0;
 
   function handleMap() {
     if (!e.latitude || !e.longitude) return;
@@ -332,12 +330,6 @@ export default function EmpreendimentoDetail() {
       default: `https://www.google.com/maps?q=${e.latitude},${e.longitude}`,
     });
     Linking.openURL(url);
-  }
-
-  function handleWhatsApp() {
-    const num = phone.startsWith('55') ? phone : `55${phone}`;
-    const msg = encodeURIComponent(`Olá! Vi o empreendimento "${e.nome_empreendimento}" e gostaria de mais informações.`);
-    Linking.openURL(`https://wa.me/${num}?text=${msg}`);
   }
 
   const address = [e.endereco, e.numero, e.bairro ?? e.bairro_comercial, e.cidade, e.uf]
@@ -744,28 +736,17 @@ export default function EmpreendimentoDetail() {
                   <Text style={styles.sectionTitle}>Contato</Text>
                   <View style={styles.contactList}>
                     {contacts.map((c, idx) => {
-                      const waNum = c.phone.startsWith('55') ? c.phone : `55${c.phone}`;
                       const fmtPhone = c.phone.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 ($2) $3-$4');
-                      const msg = encodeURIComponent(`Olá! Vi o empreendimento "${e.nome_empreendimento}" e gostaria de mais informações.`);
                       return (
                         <View key={idx} style={styles.contactCard}>
                           <View style={styles.contactAvatar}>
                             <Ionicons name="person" size={20} color={Palette.primary} />
                           </View>
                           {isAuthenticated ? (
-                            <>
-                              <View style={styles.contactInfo}>
-                                {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
-                                <Text style={styles.contactPhone}>{fmtPhone}</Text>
-                              </View>
-                              <TouchableOpacity
-                                style={styles.contactWhatsApp}
-                                onPress={() => Linking.openURL(`https://wa.me/${waNum}?text=${msg}`)}
-                                activeOpacity={0.85}
-                              >
-                                <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-                              </TouchableOpacity>
-                            </>
+                            <View style={styles.contactInfo}>
+                              {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
+                              <Text style={styles.contactPhone}>{fmtPhone}</Text>
+                            </View>
                           ) : (
                             <LoginPrompt message="Entre para ver o telefone" compact />
                           )}
@@ -1028,38 +1009,26 @@ export default function EmpreendimentoDetail() {
         onClose={() => setPlantasLightboxVisible(false)}
       />
 
-      {/* Floating CTA bar — WhatsApp + Interesse */}
-      {(hasWhatsApp || isPreLancamento) && (
+      {/* Floating CTA bar — Interesse */}
+      {isPreLancamento && (
         <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.ctaContent}>
-            {hasWhatsApp && (
-              <TouchableOpacity
-                style={styles.ctaWhatsApp}
-                onPress={handleWhatsApp}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="logo-whatsapp" size={18} color="#fff" />
-                <Text style={styles.ctaWhatsAppText}>WhatsApp</Text>
-              </TouchableOpacity>
-            )}
-            {isPreLancamento && (
-              <TouchableOpacity
-                style={[styles.ctaBtn, !hasWhatsApp && styles.ctaBtnFull, interesseLoading && styles.ctaBtnDisabled]}
-                onPress={() => handleInteresse(e.id)}
-                disabled={interesseLoading}
-                activeOpacity={0.85}
-              >
-                {interesseLoading
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : (
-                    <>
-                      <Ionicons name="heart-outline" size={16} color="#fff" />
-                      <Text style={styles.ctaBtnText}>Tenho Interesse</Text>
-                    </>
-                  )
-                }
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.ctaBtn, styles.ctaBtnFull, interesseLoading && styles.ctaBtnDisabled]}
+              onPress={() => handleInteresse(e.id)}
+              disabled={interesseLoading}
+              activeOpacity={0.85}
+            >
+              {interesseLoading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : (
+                  <>
+                    <Ionicons name="heart-outline" size={16} color="#fff" />
+                    <Text style={styles.ctaBtnText}>Tenho Interesse</Text>
+                  </>
+                )
+              }
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -1435,15 +1404,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Palette.textSecondary,
   },
-  contactWhatsApp: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.full,
-    backgroundColor: '#25D366',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadow.sm,
-  },
   // Comodidades
   comodidadeGroup: { gap: 8 },
   comodidadeGroupHeader: {
@@ -1758,22 +1718,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  ctaWhatsApp: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#25D366',
-    borderRadius: Radius.lg,
-    paddingVertical: 13,
-    ...Shadow.sm,
-  },
-  ctaWhatsAppText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '800',
   },
   ctaBtn: {
     flex: 1,

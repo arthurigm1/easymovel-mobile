@@ -111,11 +111,6 @@ export default function PerfilScreen() {
     Linking.openURL('mailto:suporte@blow.com.br?subject=Suporte%20App%20Blow');
   }
 
-  function handleWhatsAppSupport() {
-    const msg = encodeURIComponent('Olá! Preciso de suporte com o app Blow.');
-    Linking.openURL(`https://wa.me/5500000000000?text=${msg}`);
-  }
-
   async function handleChangePhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -202,15 +197,14 @@ export default function PerfilScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.loggedOutWrap}>
-          <Image
-            source={require('@/assets/images/blow-logo.png')}
-            style={styles.loggedOutLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.loggedOutLogoWrap}>
+            <Image
+              source={require('@/assets/images/blow-logo.png')}
+              style={styles.loggedOutLogo}
+              resizeMode="contain"
+            />
+          </View>
           <Text style={styles.loggedOutTitle}>Entre na sua conta</Text>
-          <Text style={styles.loggedOutSubtitle}>
-            Acesse seus dados, salve preferências e fale com a gente.
-          </Text>
           <AppButton label="Entrar" onPress={() => router.push('/login')} fullWidth />
         </View>
       </SafeAreaView>
@@ -339,12 +333,6 @@ export default function PerfilScreen() {
         {/* ── Ajuda (Suporte + Legal) ── */}
         <MenuSection title="Ajuda">
           <MenuItem
-            icon="chatbubble-ellipses-outline"
-            label="Falar pelo WhatsApp"
-            onPress={handleWhatsAppSupport}
-          />
-          <Divider />
-          <MenuItem
             icon="mail-outline"
             label="Enviar e-mail"
             onPress={handleEmail}
@@ -409,16 +397,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
     gap: Spacing.sm,
   },
+  loggedOutLogoWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: Radius.xxl,
+    backgroundColor: Palette.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
   loggedOutLogo: {
-    width: 56,
-    height: 56,
-    marginBottom: Spacing.md,
+    width: 48,
+    height: 48,
   },
   loggedOutTitle: {
     fontFamily: DisplayFont.extraBold,
-    fontSize: 22,
+    fontSize: 24,
     color: Palette.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   loggedOutSubtitle: {
     fontSize: 14,
@@ -426,7 +422,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.lg,
   },
-
   // Hero
   hero: {
     paddingHorizontal: Spacing.xl,
