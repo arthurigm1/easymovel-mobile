@@ -11,6 +11,19 @@ export function formatCurrency(value?: string | number | null): string {
   }).format(num);
 }
 
+// Igual ao PWA (tabela de parcelamentos): sempre com centavos, pois os valores
+// de parcela raramente são redondos (ex.: R$ 2.401,38).
+export function formatCurrencyExact(value?: string | number | null): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (num == null || isNaN(num)) return '—';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
 export function formatArea(area?: number | null): string | null {
   if (!area) return null;
   return `${Math.trunc(area).toLocaleString('pt-BR')}m²`;
