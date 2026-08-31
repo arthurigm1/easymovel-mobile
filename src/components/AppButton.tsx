@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { tapLight } from '@/utils/haptics';
 import { Palette, Radius, Shadow } from '@/constants/theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -74,8 +75,10 @@ export function AppButton({
   const isDisabled = disabled || loading;
 
   function handlePressIn() {
+    if (isDisabled) return;
+    tapLight();
     Animated.spring(scale, {
-      toValue: 0.95,
+      toValue: 0.96,
       useNativeDriver: true,
       speed: 50,
       bounciness: 0,
@@ -86,8 +89,8 @@ export function AppButton({
     Animated.spring(scale, {
       toValue: 1,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
+      speed: 40,
+      bounciness: 6,
     }).start();
   }
 
@@ -96,7 +99,7 @@ export function AppButton({
       style={[
         fullWidth && styles.fullWidth,
         { transform: [{ scale }] },
-        cfg.shadow,
+        !isDisabled && cfg.shadow,
       ]}
     >
       <Pressable
@@ -104,7 +107,10 @@ export function AppButton({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={isDisabled}
-        style={[
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled, busy: loading }}
+        style={({ pressed }) => [
           styles.base,
           {
             backgroundColor: cfg.bg,
@@ -112,16 +118,19 @@ export function AppButton({
             paddingHorizontal: sz.px,
             borderWidth: cfg.border ? 1.5 : 0,
             borderColor: cfg.border ?? 'transparent',
-            opacity: isDisabled ? 0.6 : 1,
+            opacity: disabled ? 0.45 : 1,
           },
           fullWidth && styles.fullWidth,
+          pressed && !isDisabled && styles.pressed,
         ]}
       >
         {loading ? (
-          <ActivityIndicator
-            size="small"
-            color={cfg.text}
-          />
+          <View style={styles.inner}>
+            <ActivityIndicator size="small" color={cfg.text} />
+            <Text style={[styles.label, styles.loadingLabel, { color: cfg.text, fontSize: sz.fontSize }]}>
+              {label}
+            </Text>
+          </View>
         ) : (
           <View style={styles.inner}>
             {iconLeft ? <View style={{ marginRight: 6 }}>{iconLeft}</View> : null}
@@ -146,6 +155,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 44,
+  },
+  pressed: {
+    opacity: 0.92,
   },
   fullWidth: {
     width: '100%',
@@ -158,5 +171,8 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: '800',
     letterSpacing: 0.1,
+  },
+  loadingLabel: {
+    marginLeft: 8,
   },
 });

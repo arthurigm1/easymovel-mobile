@@ -27,7 +27,7 @@ export function SearchBar({
 
   return (
     <View style={styles.container}>
-      <Ionicons name="search-outline" size={18} color={Palette.textTertiary} style={styles.icon} />
+      <Ionicons name="search-outline" size={19} color={Palette.textTertiary} style={styles.icon} />
       <TextInput
         style={styles.input}
         value={value}
@@ -36,10 +36,16 @@ export function SearchBar({
         placeholderTextColor={Palette.textTertiary}
         returnKeyType="search"
         clearButtonMode="while-editing"
+        accessibilityLabel={placeholder}
       />
       {value.length > 0 && (
-        <TouchableOpacity onPress={() => setValue('')} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={Palette.textTertiary} />
+        <TouchableOpacity
+          onPress={() => setValue('')}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Limpar busca"
+        >
+          <Ionicons name="close-circle" size={19} color={Palette.textTertiary} />
         </TouchableOpacity>
       )}
     </View>
@@ -52,9 +58,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Palette.surfaceVariant,
     borderRadius: Radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    gap: 8,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    gap: 10,
     borderWidth: 1.5,
     borderColor: Palette.border,
   },

@@ -1,12 +1,18 @@
 import { Image } from 'expo-image';
-import { memo, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Badge } from './Badge';
 import { StatusBadge } from './StatusBadge';
-import { ProgressBar } from './ProgressBar';
+import { FavoriteButton } from './FavoriteButton';
 import {
   getMainImage,
   getEmpresaLogo,
@@ -14,8 +20,6 @@ import {
   formatCurrency,
   formatAreaRange,
   formatQuartosRange,
-  formatVagasRange,
-  formatEntrega,
   formatPricePerM2,
 } from '@/utils/format';
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
@@ -25,140 +29,177 @@ interface Props {
   empreendimento: Empreendimento;
 }
 
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type Spec = { icon: IoniconName; text: string };
+
+// Card do feed da home. Usa SOMENTE campos retornados por GET /filtrar-empreendimentos
+// (a rota da listagem é enxuta: não traz final_construcao/entrega, unidades_vagas nem
+// coordenadas — esses só existem na rota de detalhe). Não adicionar campos daqui.
 export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendimento: e }: Props) {
   const router = useRouter();
   const mainImage = getMainImage(e);
   const logoUrl = getEmpresaLogo(e.empresa);
   const empresaNome = getEmpresaNome(e.empresa);
-  const quartosStr = formatQuartosRange(e.unidades_quartos);
+
   const areaStr = formatAreaRange(e.unidades_area);
-  const vagasStr = formatVagasRange(e.unidades_vagas);
-  const vendido = (e.fracao_vendida ?? 0) >= 1;
-  const endereco = [e.endereco, e.numero, e.bairro ?? e.bairro_comercial, e.cidade, e.uf]
-    .filter(Boolean)
-    .join(', ');
-
-  const entregaStr = formatEntrega(e.final_construcao);
+  const quartosStr = formatQuartosRange(e.unidades_quartos);
   const pricePerM2Str = formatPricePerM2(e.valor, e.unidades_area);
+  const priceStr = e.valor ? formatCurrency(e.valor) : null;
+  const disponiveis = e.unidades_disponiveis ?? 0;
 
-  const scale = useRef(new Animated.Value(1)).current;
+  const fracao = e.fracao_vendida ?? 0;
+  const vendido = fracao >= 1;
+  const emVenda = fracao > 0 && fracao < 1;
+  const pctVendido = Math.round(fracao * 100);
 
-  function handlePressIn() {
-    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
-  }
-  function handlePressOut() {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
-  }
+  const bairro = e.bairro ?? e.bairro_comercial;
+  const location = [bairro, e.cidade].filter(Boolean).join(', ');
+
+  // Featured = indigo signature. Show at most ONE accent pill: Destaque wins;
+  // Promoção only surfaces when the item isn't featured (keeps media uncluttered).
+  const featured = !!e.destaque;
+  const showPromo = !featured && !!e.unidades_promocao;
+  const accentLabel = !vendido ? (featured ? 'Destaque' : showPromo ? 'Promoção' : null) : null;
+  const accentIcon: IoniconName = featured ? 'star' : 'pricetag';
+  const accentIsPromo = accentLabel === 'Promoção';
+
+  const specs: Spec[] = [
+    areaStr ? { icon: 'resize-outline', text: areaStr } : null,
+    quartosStr ? { icon: 'bed-outline', text: `${quartosStr} quartos` } : null,
+    disponiveis > 0 ? { icon: 'home-outline', text: `${disponiveis} disp.` } : null,
+  ].filter(Boolean) as Spec[];
+
+  const reducedMotion = useReducedMotion();
+  const scale = useSharedValue(1);
+  const pressIn = () => {
+    if (reducedMotion) return;
+    scale.value = withSpring(0.97, { damping: 20, stiffness: 320 });
+  };
+  const pressOut = () => {
+    if (reducedMotion) return;
+    scale.value = withSpring(1, { damping: 15, stiffness: 250 });
+  };
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <Animated.View style={[styles.cardShadowWrap, { transform: [{ scale }] }]}>
+    <Animated.View
+      entering={reducedMotion ? undefined : FadeInDown.duration(380).springify().damping(18)}
+      style={[styles.shadowWrap, featured && styles.shadowWrapFeatured, animatedStyle]}
+    >
       <Pressable
-        style={styles.card}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        style={[styles.card, featured && styles.cardFeatured]}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
         onPress={() => router.push(`/empreendimento/${e.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={[
+          e.nome_empreendimento,
+          empresaNome,
+          location,
+          priceStr ? `a partir de ${priceStr}` : null,
+        ].filter(Boolean).join(', ')}
       >
-        <View style={styles.imageWrapper}>
+        {/* ── Media (photo as hero) ── */}
+        <View style={styles.media}>
           {mainImage ? (
             <Image
               source={mainImage}
-              style={styles.image}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={250}
               cachePolicy="memory-disk"
             />
           ) : (
-            <View style={[styles.image, styles.imageFallback]}>
-              <Ionicons name="image-outline" size={40} color={Palette.textDisabled} />
+            <View style={[StyleSheet.absoluteFill, styles.mediaFallback]}>
+              <Ionicons name="business-outline" size={34} color={Palette.textDisabled} />
             </View>
           )}
-
-          {e.destaque && (
-            <View style={styles.destaqueBadge}>
-              <Badge label="DESTAQUE" color={Palette.primary} bg={Palette.white} size="sm" />
-            </View>
-          )}
-
-          <View style={styles.statusBadgeWrap}>
-            {vendido ? (
-              <Badge label="100% Vendido" inverted color={Palette.textSecondary} size="sm" />
-            ) : (
-              <StatusBadge status={e.status} inverted compact />
-            )}
-          </View>
-
+          {/* Bottom scrim guarantees legibility of the overlay text (not just textShadow). */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.25)']}
-            style={styles.imageFooter}
+            colors={['rgba(0,0,0,0.30)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.80)']}
+            locations={[0, 0.4, 1]}
+            style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
-        </View>
 
-        <View style={styles.body}>
-          <View style={styles.companyRow}>
-            {logoUrl ? (
-              <Image source={logoUrl} style={styles.logo} contentFit="cover" />
-            ) : (
-              <View style={[styles.logo, styles.logoPlaceholder]}>
-                <Ionicons name="business" size={12} color={Palette.textTertiary} />
-              </View>
-            )}
-            <Text style={styles.companyName} numberOfLines={1}>{empresaNome || '—'}</Text>
+          {/* Top row: ONE primary badge + ONE accent (left) + construtora logo (right) */}
+          <View style={styles.mediaTop}>
+            <View style={styles.mediaTopLeft}>
+              {vendido ? (
+                <View style={styles.soldPill}>
+                  <Text style={styles.soldPillText}>100% vendido</Text>
+                </View>
+              ) : (
+                e.status ? <StatusBadge status={e.status} inverted compact /> : null
+              )}
+              {accentLabel ? (
+                <View style={[styles.accentPill, accentIsPromo && styles.promoPill]}>
+                  <Ionicons name={accentIcon} size={9} color={Palette.white} />
+                  <Text style={styles.accentPillText}>{accentLabel}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.mediaTopRight}>
+              <FavoriteButton id={e.id} size={19} variant="overlay" />
+              {logoUrl ? (
+                <View style={styles.logoChip}>
+                  <Image source={logoUrl} style={styles.logo} contentFit="contain" cachePolicy="memory-disk" />
+                </View>
+              ) : null}
+            </View>
           </View>
 
-          <View style={styles.titleBlock}>
+          {/* Bottom overlay: construtora + name + location */}
+          <View style={styles.mediaBottom}>
+            {empresaNome ? (
+              <Text style={styles.company} numberOfLines={1}>{empresaNome.toUpperCase()}</Text>
+            ) : null}
             <Text style={styles.name} numberOfLines={2}>{e.nome_empreendimento}</Text>
-            {endereco ? (
+            {location ? (
               <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={13} color={Palette.textSecondary} />
-                <Text style={styles.location} numberOfLines={1}>{endereco}</Text>
+                <Ionicons name="location-sharp" size={12} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.location} numberOfLines={1}>{location}</Text>
               </View>
             ) : null}
           </View>
+        </View>
 
-          <View style={styles.specsRow}>
-            {areaStr && (
-              <View style={styles.specItem}>
-                <Ionicons name="resize-outline" size={14} color={Palette.textSecondary} />
-                <Text style={styles.specText}>{areaStr}</Text>
-              </View>
-            )}
-            {quartosStr && (
-              <View style={styles.specItem}>
-                <Ionicons name="bed-outline" size={14} color={Palette.textSecondary} />
-                <Text style={styles.specText}>{quartosStr} quartos</Text>
-              </View>
-            )}
-            {vagasStr && (
-              <View style={styles.specItem}>
-                <Ionicons name="car-outline" size={14} color={Palette.textSecondary} />
-                <Text style={styles.specText}>{vagasStr} vagas</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.divider} />
-
-          {(e.valor || entregaStr) && (
-            <View style={[styles.bottomRow, !e.valor && styles.bottomRowMetaOnly]}>
-              {e.valor ? (
-                <View style={styles.priceBlock}>
-                  <Text style={styles.priceLabel}>A partir de</Text>
-                  <Text style={styles.price}>{formatCurrency(e.valor)}</Text>
-                  {pricePerM2Str && <Text style={styles.pricePerM2}>{pricePerM2Str}</Text>}
+        {/* ── Body: specs + price ── */}
+        <View style={styles.body}>
+          {specs.length > 0 && (
+            <View style={styles.specsRow}>
+              {specs.map((s, i) => (
+                <View key={s.icon} style={styles.specItem}>
+                  {i > 0 && <View style={styles.specDot} />}
+                  <Ionicons name={s.icon} size={13} color={Palette.textTertiary} />
+                  <Text style={styles.specText}>{s.text}</Text>
                 </View>
-              ) : null}
-
-              {entregaStr && (
-                <View style={[styles.metaColumn, !e.valor && styles.metaColumnAlone]}>
-                  <Text style={styles.metaEntregaLabel}>Entrega</Text>
-                  <Text style={styles.metaEntregaValue} numberOfLines={1}>{entregaStr}</Text>
-                </View>
-              )}
+              ))}
             </View>
           )}
 
-          <ProgressBar value={e.fracao_vendida ?? 0} />
+          {priceStr ? (
+            <View style={styles.priceRow}>
+              <View style={styles.priceBlock}>
+                <Text style={styles.priceLabel}>A partir de</Text>
+                <Text style={styles.price} numberOfLines={1}>{priceStr}</Text>
+              </View>
+              {pricePerM2Str ? (
+                <View style={styles.perM2Chip}>
+                  <Text style={styles.perM2Text}>{pricePerM2Str}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {emVenda && (
+            <View style={styles.progressRow}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${pctVendido}%` as `${number}%` }]} />
+              </View>
+              <Text style={styles.progressText}>{pctVendido}% vendido</Text>
+            </View>
+          )}
         </View>
       </Pressable>
     </Animated.View>
@@ -166,156 +207,160 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
 });
 
 const styles = StyleSheet.create({
-  cardShadowWrap: {
+  shadowWrap: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     borderRadius: Radius.xl,
     ...Shadow.sm,
   },
+  // Featured signature: indigo-tinted glow (Shadow.lg is keyed to Palette.primary).
+  shadowWrapFeatured: {
+    ...Shadow.lg,
+  },
   card: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.xl,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
   },
-  imageWrapper: {
-    position: 'relative',
-    aspectRatio: 4 / 3,
+  // Featured signature: subtle indigo ring around the whole card.
+  cardFeatured: {
+    borderWidth: 1.5,
+    borderColor: Palette.primary,
+  },
+
+  // Media
+  media: {
+    aspectRatio: 16 / 10,
     backgroundColor: Palette.surfaceVariant,
+    justifyContent: 'space-between',
   },
-  image: {
-    width: '100%',
-    height: '100%',
+  mediaFallback: { alignItems: 'center', justifyContent: 'center' },
+  mediaTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    padding: 10,
+    gap: 8,
   },
-  imageFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  destaqueBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-  },
-  statusBadgeWrap: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-  },
-  imageFooter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 56,
-  },
-  body: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
-  },
-  companyRow: {
+  mediaTopLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
-  logo: {
-    width: 18,
-    height: 18,
-    borderRadius: Radius.xs,
+  mediaTopRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+    flexShrink: 0,
   },
-  logoPlaceholder: {
-    backgroundColor: Palette.surfaceVariant,
+  soldPill: {
+    backgroundColor: 'rgba(22,22,29,0.72)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  soldPillText: { fontSize: 10.5, fontWeight: '800', color: Palette.white, letterSpacing: 0.2 },
+  accentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Palette.primary,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  promoPill: { backgroundColor: Palette.unitPromocao },
+  accentPillText: { fontSize: 9.5, fontWeight: '800', color: Palette.white, letterSpacing: 0.3 },
+  logoChip: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.white,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 4,
+    ...Shadow.xs,
   },
-  companyName: {
-    flex: 1,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Palette.textTertiary,
-    letterSpacing: 0.1,
-  },
-  titleBlock: {
-    gap: 3,
+  logo: { width: '100%', height: '100%' },
+
+  mediaBottom: { paddingHorizontal: 14, paddingBottom: 12, gap: 2 },
+  company: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   name: {
     fontFamily: DisplayFont.bold,
-    fontSize: 17,
-    color: Palette.text,
-    letterSpacing: -0.3,
+    fontSize: 21,
+    lineHeight: 25,
+    color: Palette.white,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
   location: {
-    flex: 1,
-    fontSize: 12,
-    color: Palette.textSecondary,
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.92)',
+    fontWeight: '500',
+    flexShrink: 1,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  specsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
+
+  // Body
+  body: { paddingHorizontal: 14, paddingTop: 11, paddingBottom: 13, gap: 10 },
+  specsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  specItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  specDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Palette.borderStrong,
+    marginHorizontal: 8,
   },
-  specItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  specText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Palette.textSecondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Palette.borderLight,
-  },
-  bottomRow: {
+  specText: { fontSize: 13, fontWeight: '600', color: Palette.textSecondary },
+
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: Spacing.sm,
+    gap: 10,
   },
-  bottomRowMetaOnly: {
-    justifyContent: 'flex-start',
-  },
-  priceBlock: {
-    gap: 1,
-  },
-  priceLabel: {
-    fontSize: 10,
-    color: Palette.textTertiary,
-    fontWeight: '600',
-  },
+  priceBlock: { flexShrink: 1 },
+  priceLabel: { fontSize: 10, fontWeight: '600', color: Palette.textTertiary, letterSpacing: 0.2 },
   price: {
     fontFamily: DisplayFont.extraBold,
-    fontSize: 17,
+    fontSize: 18,
     color: Palette.text,
-    letterSpacing: -0.3,
-  },
-  pricePerM2: {
-    fontSize: 11,
-    color: Palette.textTertiary,
-    fontWeight: '500',
+    letterSpacing: -0.4,
     marginTop: 1,
   },
-  metaColumn: {
-    alignItems: 'flex-end',
-    gap: 1,
+  perM2Chip: {
+    backgroundColor: Palette.surfaceVariant,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  metaColumnAlone: {
-    alignItems: 'flex-start',
+  perM2Text: { fontSize: 11, fontWeight: '700', color: Palette.textSecondary },
+
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.border,
+    overflow: 'hidden',
   },
-  metaEntregaLabel: {
-    fontSize: 10,
-    color: Palette.textTertiary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  metaEntregaValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.textSecondary,
-  },
+  progressFill: { height: '100%', borderRadius: Radius.full, backgroundColor: Palette.primary },
+  progressText: { fontSize: 10.5, fontWeight: '700', color: Palette.textTertiary },
 });

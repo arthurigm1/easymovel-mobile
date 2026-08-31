@@ -153,16 +153,19 @@ export const Typography = {
   overline: { fontSize: 10, fontWeight: '700' as const, letterSpacing: 0.8 },
 } as const;
 
-// Legacy exports for backwards compatibility
+// Legacy exports for backwards compatibility.
+// Spread the full Palette so componentes legados (themed-text/view, collapsible,
+// hint-row, app-tabs.web) possam indexar por qualquer chave da Palette sem erro
+// de tipo, mantendo os aliases legados background/backgroundElement/backgroundSelected.
 export const Colors = {
   light: {
-    text: Palette.text,
+    ...Palette,
     background: Palette.bg,
     backgroundElement: Palette.primaryLight,
     backgroundSelected: Palette.primaryMid,
-    textSecondary: Palette.textSecondary,
   },
   dark: {
+    ...Palette,
     text: '#F8FAFF',
     background: '#0A0E1A',
     backgroundElement: '#141929',
@@ -198,4 +201,6 @@ export const DisplayFont = {
   serifSemiBold: 'SourceSerif4_600SemiBold',
 } as const;
 
-export type ThemeColor = keyof typeof Palette;
+// Inclui as chaves da Palette + os aliases legados de Colors
+// (background/backgroundElement/backgroundSelected) usados por componentes de template.
+export type ThemeColor = keyof (typeof Colors)['light'];

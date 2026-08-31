@@ -75,8 +75,14 @@ export const AppInput = forwardRef(function AppInput(
               : focused
               ? Palette.primary
               : Palette.border,
-            backgroundColor: focused ? Palette.primaryLight : Palette.surfaceVariant,
+            backgroundColor: hasError
+              ? Palette.errorBg
+              : focused
+              ? Palette.primaryLight
+              : Palette.surfaceVariant,
           },
+          focused && !hasError && styles.containerFocused,
+          hasError && styles.containerError,
         ]}
       >
         {icon ? (
@@ -98,11 +104,16 @@ export const AppInput = forwardRef(function AppInput(
         />
 
         {iconRight ? (
-          <Pressable onPress={onIconRightPress} hitSlop={8}>
+          <Pressable
+            onPress={onIconRightPress}
+            hitSlop={12}
+            accessibilityRole="button"
+            style={({ pressed }) => pressed && styles.iconRightPressed}
+          >
             <Ionicons
               name={iconRight}
               size={18}
-              color={Palette.textTertiary}
+              color={focused ? Palette.primary : Palette.textTertiary}
             />
           </Pressable>
         ) : null}
@@ -140,9 +151,25 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: Radius.md,
     paddingHorizontal: 14,
+    minHeight: 52,
     paddingVertical: 13,
     gap: 10,
   },
+  containerFocused: {
+    shadowColor: Palette.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  containerError: {
+    shadowColor: Palette.error,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  iconRightPressed: { opacity: 0.5 },
   iconLeft: { flexShrink: 0 },
   input: {
     flex: 1,

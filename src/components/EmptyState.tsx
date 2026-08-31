@@ -12,13 +12,21 @@ interface Props {
 export function EmptyState({ icon = 'search-outline', title, message, action }: Props) {
   return (
     <View style={styles.container}>
-      <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={36} color={Palette.primary} />
+      <View style={styles.iconHalo}>
+        <View style={styles.iconWrap}>
+          <Ionicons name={icon} size={34} color={Palette.primary} />
+        </View>
       </View>
       {title && <Text style={styles.title}>{title}</Text>}
       <Text style={styles.message}>{message}</Text>
       {action && (
-        <TouchableOpacity style={styles.btn} onPress={action.onPress} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.btn}
+          onPress={action.onPress}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+        >
           <Text style={styles.btnText}>{action.label}</Text>
         </TouchableOpacity>
       )}
@@ -35,16 +43,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 14,
   },
+  iconHalo: {
+    width: 96,
+    height: 96,
+    borderRadius: Radius.xxl,
+    backgroundColor: Palette.primarySubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: Radius.xl,
-    backgroundColor: Palette.primaryLight,
+    backgroundColor: Palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: Palette.primaryMid,
-    marginBottom: 4,
+    ...Shadow.sm,
   },
   title: {
     fontSize: 18,
@@ -65,8 +82,9 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.primary,
     borderRadius: Radius.md,
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    ...Shadow.sm,
+    minHeight: 48,
+    justifyContent: 'center',
+    ...Shadow.md,
   },
   btnText: {
     fontSize: 14,

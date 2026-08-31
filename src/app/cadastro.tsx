@@ -19,7 +19,7 @@ import { AppButton } from '@/components/AppButton';
 import { criarUsuario } from '@/services/usuarios';
 import { enviarCodigoEmail, validarCodigoEmail } from '@/services/codigos';
 import { REGIAO_OPTIONS } from '@/components/FilterSheet';
-import { Palette, Radius, Spacing, DisplayFont } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 
 type TipoUsuario = 'imobiliaria' | 'corretor_autonomo';
 
@@ -184,6 +184,8 @@ export default function CadastroScreen() {
             : router.replace('/login')
         }
         hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={step === 'codigo' ? 'Voltar' : 'Fechar'}
       >
         <Ionicons name={step === 'codigo' ? 'arrow-back' : 'close'} size={22} color={Palette.textSecondary} />
       </TouchableOpacity>
@@ -196,6 +198,9 @@ export default function CadastroScreen() {
         {step === 'form' ? (
         <>
         <View style={styles.header}>
+          <View style={styles.iconBadge}>
+            <Ionicons name="person-add-outline" size={26} color={Palette.primary} />
+          </View>
           <Text style={styles.title}>Criar conta</Text>
           <Text style={styles.subtitle}>
             Cadastro para corretores(as) autônomos(as) e imobiliárias parceiras.
@@ -221,6 +226,9 @@ export default function CadastroScreen() {
                     style={[styles.tipoCard, active && styles.tipoCardActive]}
                     onPress={() => setTipo(t.value)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={t.label}
                   >
                     <Ionicons name={t.icon} size={18} color={active ? Palette.primary : Palette.textTertiary} />
                     <Text style={[styles.tipoCardText, active && styles.tipoCardTextActive]}>{t.label}</Text>
@@ -340,6 +348,9 @@ export default function CadastroScreen() {
                     style={[styles.regiaoChip, active && styles.regiaoChipActive]}
                     onPress={() => setRegiao(active ? '' : r.value)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Região ${r.label}`}
                   >
                     <Text style={[styles.regiaoChipText, active && styles.regiaoChipTextActive]}>
                       {r.label}
@@ -350,17 +361,32 @@ export default function CadastroScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.policyRow} onPress={() => setPolicy((v) => !v)} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.policyRow}
+            onPress={() => setPolicy((v) => !v)}
+            activeOpacity={0.8}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: policy }}
+            accessibilityLabel="Li e concordo com os Termos de Uso e a Política de Privacidade"
+          >
             <View style={[styles.checkbox, policy && styles.checkboxActive]}>
               {policy && <Ionicons name="checkmark" size={13} color={Palette.white} />}
             </View>
             <Text style={styles.policyText}>
               Li e concordo com os{' '}
-              <Text style={styles.policyLink} onPress={() => Linking.openURL('https://www.blow.com.br/termos-de-uso.html')}>
+              <Text
+                style={styles.policyLink}
+                accessibilityRole="link"
+                onPress={() => Linking.openURL('https://www.blow.com.br/termos-de-uso.html')}
+              >
                 Termos de Uso
               </Text>{' '}
               e a{' '}
-              <Text style={styles.policyLink} onPress={() => Linking.openURL('https://www.blow.com.br/politica-de-privacidade.html')}>
+              <Text
+                style={styles.policyLink}
+                accessibilityRole="link"
+                onPress={() => Linking.openURL('https://www.blow.com.br/politica-de-privacidade.html')}
+              >
                 Política de Privacidade
               </Text>
               .
@@ -377,7 +403,12 @@ export default function CadastroScreen() {
 
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Já tem conta?</Text>
-            <TouchableOpacity onPress={() => (canGoBack ? router.back() : router.replace('/login'))} hitSlop={6}>
+            <TouchableOpacity
+              onPress={() => (canGoBack ? router.back() : router.replace('/login'))}
+              hitSlop={6}
+              accessibilityRole="link"
+              accessibilityLabel="Entrar"
+            >
               <Text style={styles.signupLink}>Entrar</Text>
             </TouchableOpacity>
           </View>
@@ -386,6 +417,9 @@ export default function CadastroScreen() {
         ) : (
         <>
           <View style={styles.header}>
+            <View style={styles.iconBadge}>
+              <Ionicons name="mail-open-outline" size={26} color={Palette.primary} />
+            </View>
             <Text style={styles.title}>Confirme seu e-mail</Text>
             <Text style={styles.subtitle}>
               Enviamos um código de 6 dígitos para{'\n'}
@@ -415,7 +449,12 @@ export default function CadastroScreen() {
 
             <View style={styles.resendRow}>
               <Text style={styles.signupText}>Não recebeu?</Text>
-              <TouchableOpacity onPress={handleReenviarCodigo} hitSlop={6}>
+              <TouchableOpacity
+                onPress={handleReenviarCodigo}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Reenviar código"
+              >
                 <Text style={styles.signupLink}>Reenviar código</Text>
               </TouchableOpacity>
             </View>
@@ -445,30 +484,45 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     position: 'absolute',
-    left: 16,
+    left: Spacing.lg,
     zIndex: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Palette.surfaceVariant,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Shadow.xs,
   },
 
   header: {
-    marginBottom: Spacing.lg,
-    gap: 4,
+    marginBottom: Spacing.xl,
+    gap: 8,
+  },
+  iconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primaryMid,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+    ...Shadow.sm,
   },
   title: {
     fontFamily: DisplayFont.extraBold,
-    fontSize: 24,
+    fontSize: 26,
     color: Palette.text,
     letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 13.5,
+    fontSize: 14,
     color: Palette.textSecondary,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   emailHighlight: {
     fontWeight: '700',
@@ -522,7 +576,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 13,
     borderRadius: Radius.md,
     borderWidth: 1.5,
     borderColor: Palette.border,

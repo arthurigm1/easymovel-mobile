@@ -5,12 +5,21 @@ import {
   Image,
   Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  Keyframe,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
@@ -31,14 +40,93 @@ const CATEGORIES = [
   { icon: 'pricetag-outline' as const, label: 'Lançamentos', field: 'status_construcao' as const, value: 'Lançamento' },
 ];
 
+// Rótulos legíveis para os chips de filtros ativos
+const STATUS_LABELS: Record<string, string> = {
+  'pre-lancamento': 'Pré-Lançamento',
+  'Lançamento': 'Lançamento',
+  'Em Construção': 'Em Construção',
+  'Pronto para Morar': 'Pronto para Morar',
+};
+const TIPO_LABELS: Record<string, string> = {
+  empreendimento: 'Condomínios',
+  loteamento: 'Loteamentos',
+  'imovel-avulso': 'Avulsos',
+};
+
+function fmtPreco(v: number): string {
+  if (v >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `R$ ${Number.isInteger(m) ? m : m.toFixed(1)} mi`;
+  }
+  if (v >= 1000) return `R$ ${Math.round(v / 1000)} mil`;
+  return `R$ ${v}`;
+}
+
+function rangeLabel(
+  min: number | undefined,
+  max: number | undefined,
+  fmt: (n: number) => string,
+): string {
+  if (min != null && max != null) return `${fmt(min)} – ${fmt(max)}`;
+  if (min != null) return `A partir de ${fmt(min)}`;
+  return `Até ${fmt(max as number)}`;
+}
+
+type ActiveChip = { key: string; label: string; onRemove: () => void };
+
+// ─── Motion helpers ───────────────────────────────────────────────────────────
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+const SPRING_IN = { damping: 15, stiffness: 320 } as const;
+const SPRING_OUT = { damping: 13, stiffness: 260 } as const;
+
+// Fade + scale/slide para o popover de ordenação (respeita reduced-motion no caller).
+const SortMenuEnter = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.92 }, { translateY: -8 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }] },
+}).duration(180);
+
+// Entrada suave e rápida dos blocos do header (sem tocar nos itens da lista).
+function headerEnter(reduced: boolean, delay: number) {
+  return reduced ? undefined : FadeInDown.duration(380).delay(delay);
+}
+
+type PressableScaleProps = React.ComponentProps<typeof TouchableOpacity> & { reduced: boolean };
+
+// Toque com spring press-scale tátil, preservando estados visuais e a11y do filho.
+function PressableScale({ reduced, style, children, onPressIn, onPressOut, ...rest }: PressableScaleProps) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <AnimatedTouchable
+      {...rest}
+      style={[style, animStyle]}
+      onPressIn={(e) => {
+        if (!reduced) scale.value = withSpring(0.93, SPRING_IN);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        if (!reduced) scale.value = withSpring(1, SPRING_OUT);
+        onPressOut?.(e);
+      }}
+    >
+      {children}
+    </AnimatedTouchable>
+  );
+}
+
 export default function InicioScreen() {
   const router = useRouter();
+  const reduced = useReducedMotion();
   const user = useAuthStore((s) => s.user);
   const params = useLocalSearchParams<{
     empresa_id?: string;
     empresa_nome?: string;
     status_construcao?: string;
     regiao?: string;
+    bairro_id?: string;
+    bairro_nome?: string;
+    empreendimento_nome?: string;
+    endereco?: string;
   }>();
 
   const [filterVisible, setFilterVisible] = useState(false);
@@ -60,17 +148,40 @@ export default function InicioScreen() {
     setSortVisible(false);
   }
 
-  // Navegação vinda de Construtoras (empresa_id) ou de outros pontos com filtro pré-definido
+  // Navegação vinda da Busca (bairro / empreendimento / endereço / construtora) ou de
+  // outros pontos com filtro pré-definido. Merge — cada parâmetro popula apenas o seu
+  // próprio filtro, preservando os demais já ativos.
   useEffect(() => {
-    if (params.empresa_id || params.status_construcao || params.regiao) {
+    if (
+      params.empresa_id ||
+      params.status_construcao ||
+      params.regiao ||
+      params.bairro_id ||
+      params.empreendimento_nome ||
+      params.endereco
+    ) {
       setActiveFilters((prev) => ({
         ...prev,
         ...(params.empresa_id ? { empresa_id: params.empresa_id, empresa_nome: params.empresa_nome } : {}),
         ...(params.status_construcao ? { status_construcao: params.status_construcao } : {}),
         ...(params.regiao ? { regiao: params.regiao } : {}),
+        ...(params.bairro_id
+          ? { bairros: [{ id: params.bairro_id, label: params.bairro_nome ?? params.bairro_id }] }
+          : {}),
+        ...(params.empreendimento_nome
+          ? { empreendimentos: [{ id: params.empreendimento_nome, label: params.empreendimento_nome }] }
+          : {}),
+        ...(params.endereco ? { endereco: params.endereco } : {}),
       }));
     }
-  }, [params.empresa_id, params.status_construcao, params.regiao]);
+  }, [
+    params.empresa_id,
+    params.status_construcao,
+    params.regiao,
+    params.bairro_id,
+    params.empreendimento_nome,
+    params.endereco,
+  ]);
 
   const activeCount = [
     activeFilters.status_construcao,
@@ -90,6 +201,7 @@ export default function InicioScreen() {
     activeFilters.comodidades?.length ? '__comodidades__' : undefined,
     activeFilters.endereco,
   ].filter(Boolean).length;
+
 
   const { data, isLoading, isError, isFetchingNextPage, fetchNextPage, hasNextPage, refetch, isRefetching } =
     useEmpreendimentos({
@@ -132,6 +244,119 @@ export default function InicioScreen() {
     }));
   }
 
+  function clearAllFilters() {
+    setActiveFilters((f) => (f.ordenar_por ? { ordenar_por: f.ordenar_por } : EMPTY_FILTERS));
+  }
+
+  // Constrói um chip removível por filtro ativo. Cada onRemove limpa apenas o
+  // próprio filtro atualizando `activeFilters` (modelo de estado inalterado).
+  const patch = (p: Partial<FilterState>) => setActiveFilters((f) => ({ ...f, ...p }));
+  const activeChips: ActiveChip[] = [];
+
+  if (activeFilters.regiao) {
+    activeChips.push({
+      key: 'regiao',
+      label: REGIAO_OPTIONS.find((r) => r.value === activeFilters.regiao)?.label ?? activeFilters.regiao,
+      onRemove: () => patch({ regiao: undefined }),
+    });
+  }
+  if (activeFilters.status_construcao) {
+    activeChips.push({
+      key: 'status',
+      label: STATUS_LABELS[activeFilters.status_construcao] ?? activeFilters.status_construcao,
+      onRemove: () => patch({ status_construcao: undefined }),
+    });
+  }
+  if (activeFilters.tipo_imovel) {
+    activeChips.push({
+      key: 'tipo',
+      label: TIPO_LABELS[activeFilters.tipo_imovel] ?? activeFilters.tipo_imovel,
+      onRemove: () => patch({ tipo_imovel: undefined }),
+    });
+  }
+  if (activeFilters.tipologia) {
+    activeChips.push({ key: 'tipologia', label: activeFilters.tipologia, onRemove: () => patch({ tipologia: undefined }) });
+  }
+  if (activeFilters.quant_quartos) {
+    const v = activeFilters.quant_quartos;
+    activeChips.push({ key: 'quartos', label: `${v} quarto${v === '1' ? '' : 's'}`, onRemove: () => patch({ quant_quartos: undefined }) });
+  }
+  if (activeFilters.quant_suites) {
+    const v = activeFilters.quant_suites;
+    activeChips.push({ key: 'suites', label: `${v} suíte${v === '1' ? '' : 's'}`, onRemove: () => patch({ quant_suites: undefined }) });
+  }
+  if (activeFilters.quant_vagas) {
+    const v = activeFilters.quant_vagas;
+    activeChips.push({ key: 'vagas', label: `${v} vaga${v === '1' ? '' : 's'}`, onRemove: () => patch({ quant_vagas: undefined }) });
+  }
+  if (activeFilters.valor_min != null || activeFilters.valor_max != null) {
+    activeChips.push({
+      key: 'valor',
+      label: rangeLabel(activeFilters.valor_min, activeFilters.valor_max, fmtPreco),
+      onRemove: () => patch({ valor_min: undefined, valor_max: undefined }),
+    });
+  }
+  if (activeFilters.area_min != null || activeFilters.area_max != null) {
+    activeChips.push({
+      key: 'area',
+      label: rangeLabel(activeFilters.area_min, activeFilters.area_max, (n) => `${n} m²`),
+      onRemove: () => patch({ area_min: undefined, area_max: undefined }),
+    });
+  }
+  if (activeFilters.disponiveis) {
+    activeChips.push({ key: 'disp', label: 'Só disponíveis', onRemove: () => patch({ disponiveis: undefined }) });
+  }
+  if (activeFilters.empresa_id) {
+    activeChips.push({ key: 'empresa', label: activeFilters.empresa_nome ?? 'Construtora', onRemove: removeEmpresaFilter });
+  }
+  activeFilters.empreendimentos?.forEach((e) => {
+    activeChips.push({
+      key: `emp-${e.id}`,
+      label: e.label,
+      onRemove: () =>
+        setActiveFilters((f) => {
+          const next = f.empreendimentos?.filter((x) => x.id !== e.id);
+          return { ...f, empreendimentos: next?.length ? next : undefined };
+        }),
+    });
+  });
+  activeFilters.bairros?.forEach((b) => {
+    activeChips.push({
+      key: `bairro-${b.id}`,
+      label: b.label,
+      onRemove: () =>
+        setActiveFilters((f) => {
+          const next = f.bairros?.filter((x) => x.id !== b.id);
+          return { ...f, bairros: next?.length ? next : undefined };
+        }),
+    });
+  });
+  activeFilters.construtoras?.forEach((c) => {
+    activeChips.push({
+      key: `constr-${c.id}`,
+      label: c.label,
+      onRemove: () =>
+        setActiveFilters((f) => {
+          const next = f.construtoras?.filter((x) => x.id !== c.id);
+          return { ...f, construtoras: next?.length ? next : undefined };
+        }),
+    });
+  });
+  activeFilters.comodidades?.forEach((com) => {
+    activeChips.push({
+      key: `com-${com}`,
+      label: com,
+      onRemove: () =>
+        setActiveFilters((f) => {
+          const next = (f.comodidades ?? []).filter((x) => x !== com);
+          return { ...f, comodidades: next.length ? next : undefined };
+        }),
+    });
+  });
+  if (activeFilters.endereco) {
+    activeChips.push({ key: 'endereco', label: activeFilters.endereco, onRemove: () => patch({ endereco: undefined }) });
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
@@ -150,23 +375,26 @@ export default function InicioScreen() {
           />
         }
         ListHeaderComponent={
+          <>
           <View style={styles.headerArea}>
             {/* Logo + região */}
-            <View style={styles.topRow}>
+            <Animated.View style={styles.topRow} entering={headerEnter(reduced, 0)}>
               <TouchableOpacity
                 style={styles.regiaoBtn}
                 onPress={() => { setPendingFilters(activeFilters); setFilterVisible(true); }}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Sua região: ${regiaoLabel}. Toque para abrir os filtros`}
               >
                 <View style={styles.logoWrap}>
                   <Image source={require('@/assets/images/blow-logo.png')} style={styles.logo} resizeMode="contain" />
                 </View>
                 <View style={styles.regiaoTexts}>
                   <Text style={styles.regiaoEyebrow}>SUA REGIÃO</Text>
-                  <View style={styles.regiaoValueRow}>
-                    <Text style={styles.regiaoText} numberOfLines={1}>{regiaoLabel}</Text>
-                    <Ionicons name="chevron-down" size={16} color={Palette.textSecondary} />
-                  </View>
+                  <Text style={styles.regiaoText} numberOfLines={1}>{regiaoLabel}</Text>
+                </View>
+                <View style={styles.regiaoChevron}>
+                  <Ionicons name="chevron-down" size={15} color={Palette.primaryDark} />
                 </View>
               </TouchableOpacity>
 
@@ -174,27 +402,20 @@ export default function InicioScreen() {
                 style={styles.filtrosBtn}
                 onPress={() => { setPendingFilters(activeFilters); setFilterVisible(true); }}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={activeCount > 0 ? `Filtros, ${activeCount} ativos` : 'Abrir filtros'}
               >
-                <Ionicons name="options-outline" size={17} color={Palette.white} />
+                <Ionicons name="options-outline" size={20} color={Palette.white} />
                 {activeCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{activeCount}</Text>
                   </View>
                 )}
               </TouchableOpacity>
-            </View>
-
-            {activeFilters.empresa_id && (
-              <TouchableOpacity style={styles.empresaBanner} onPress={removeEmpresaFilter} activeOpacity={0.85}>
-                <Ionicons name="business" size={14} color={Palette.primaryDark} />
-                <Text style={styles.empresaBannerText} numberOfLines={1}>
-                  {activeFilters.empresa_nome ?? 'Construtora'}
-                </Text>
-                <Ionicons name="close-circle" size={16} color={Palette.primaryDark} />
-              </TouchableOpacity>
-            )}
+            </Animated.View>
 
             {/* Categorias rápidas */}
+            <Animated.View entering={headerEnter(reduced, 70)}>
             <FlatList
               horizontal
               data={CATEGORIES}
@@ -204,54 +425,105 @@ export default function InicioScreen() {
               renderItem={({ item: cat }) => {
                 const active = activeFilters[cat.field] === cat.value;
                 return (
-                  <TouchableOpacity
+                  <PressableScale
+                    reduced={reduced}
                     style={[styles.categoryChip, active && styles.categoryChipActive]}
                     onPress={() => toggleCategory(cat.field, cat.value)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={cat.label}
                   >
                     <Ionicons
                       name={cat.icon}
-                      size={14}
+                      size={15}
                       color={active ? Palette.white : Palette.primary}
                     />
                     <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{cat.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               }}
             />
+            </Animated.View>
 
-            <View style={styles.countRow}>
+            {/* Chips de filtros ativos — remove cada filtro individualmente */}
+            {activeChips.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {activeChips.map((chip) => (
+                  <TouchableOpacity
+                    key={chip.key}
+                    style={styles.activeChip}
+                    onPress={chip.onRemove}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Filtro ${chip.label}. Toque para remover`}
+                  >
+                    <Text style={styles.activeChipText} numberOfLines={1}>{chip.label}</Text>
+                    <Ionicons name="close" size={14} color={Palette.primaryDark} />
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={styles.clearChip}
+                  onPress={clearAllFilters}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpar todos os filtros"
+                >
+                  <Ionicons name="close-circle-outline" size={15} color={Palette.textSecondary} />
+                  <Text style={styles.clearChipText}>Limpar tudo</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            <Animated.View style={styles.countRow} entering={headerEnter(reduced, 130)}>
               {total != null ? (
                 <Text style={styles.countText}>
                   <Text style={styles.countNumber}>{total}</Text> imóve{total !== 1 ? 'is' : 'l'} encontrado{total !== 1 ? 's' : ''}
                 </Text>
               ) : <View />}
-              <TouchableOpacity
+              <PressableScale
+                reduced={reduced}
                 style={styles.sortBtn}
                 onPress={() => setSortVisible(true)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Ordenar por ${ordenarLabel}`}
               >
-                <Ionicons name="swap-vertical" size={13} color={Palette.textSecondary} />
+                <Ionicons name="swap-vertical" size={14} color={Palette.primary} />
                 <Text style={styles.sortBtnText}>{ordenarLabel}</Text>
-              </TouchableOpacity>
-            </View>
+              </PressableScale>
+            </Animated.View>
           </View>
+
+          </>
         }
         ListEmptyComponent={
           isLoading ? (
             <View style={styles.skeletons}><SkeletonList count={3} /></View>
           ) : isError ? (
             <EmptyState
-              icon="wifi-outline"
-              title="Erro de conexão"
-              message="Não foi possível carregar os imóveis."
+              icon="cloud-offline-outline"
+              title="Não foi possível carregar"
+              message="Verifique sua conexão e tente novamente."
               action={{ label: 'Tentar novamente', onPress: () => refetch() }}
+            />
+          ) : activeCount > 0 ? (
+            <EmptyState
+              icon="search-outline"
+              title="Nenhum imóvel encontrado"
+              message="Nenhum resultado para esses filtros. Tente ampliar sua busca."
+              action={{ label: 'Limpar filtros', onPress: clearAllFilters }}
             />
           ) : (
             <EmptyState
               icon="home-outline"
-              title="Nenhum imóvel encontrado"
-              message="Tente ajustar a busca ou os filtros."
+              title="Nenhum imóvel por aqui"
+              message="Ainda não há empreendimentos para exibir. Puxe para atualizar."
             />
           )
         }
@@ -279,9 +551,15 @@ export default function InicioScreen() {
       />
 
       <Modal visible={sortVisible} transparent animationType="fade" onRequestClose={() => setSortVisible(false)}>
-        <TouchableOpacity style={styles.sortBackdrop} activeOpacity={1} onPress={() => setSortVisible(false)}>
-          <View style={styles.sortMenu}>
-            <Text style={styles.sortMenuTitle}>Ordenar por</Text>
+        <TouchableOpacity
+          style={styles.sortBackdrop}
+          activeOpacity={1}
+          onPress={() => setSortVisible(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Fechar menu de ordenação"
+        >
+          <Animated.View style={styles.sortMenu} entering={reduced ? undefined : SortMenuEnter}>
+            <Text style={styles.sortMenuTitle}>ORDENAR POR</Text>
             {ORDENAR_OPTIONS.map((opt) => {
               const active = (activeFilters.ordenar_por ?? '') === opt.value;
               return (
@@ -290,13 +568,16 @@ export default function InicioScreen() {
                   style={styles.sortOption}
                   onPress={() => selectOrdenar(opt.value)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={opt.label}
                 >
                   <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>{opt.label}</Text>
-                  {active && <Ionicons name="checkmark" size={16} color={Palette.primary} />}
+                  {active && <Ionicons name="checkmark" size={18} color={Palette.primary} />}
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>
@@ -306,13 +587,13 @@ export default function InicioScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.bg },
   headerArea: {
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
     gap: Spacing.lg,
-    backgroundColor: Palette.bg,
-    borderBottomLeftRadius: Radius.xl,
-    borderBottomRightRadius: Radius.xl,
-    ...Shadow.xs,
+    backgroundColor: Palette.surface,
+    borderBottomLeftRadius: Radius.xxxl,
+    borderBottomRightRadius: Radius.xxxl,
+    ...Shadow.md,
   },
   topRow: {
     flexDirection: 'row',
@@ -324,113 +605,127 @@ const styles = StyleSheet.create({
   regiaoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: Spacing.md,
     flexShrink: 1,
+    minHeight: 48,
   },
   logoWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primarySubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.xs,
+  },
+  logo: {
+    width: 28,
+    height: 28,
+  },
+  regiaoTexts: {
+    flexShrink: 1,
+    gap: 3,
+  },
+  regiaoEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Palette.primary,
+    letterSpacing: 1.2,
+  },
+  regiaoText: {
+    fontFamily: DisplayFont.bold,
+    fontSize: 21,
+    color: Palette.text,
+    letterSpacing: -0.4,
+    flexShrink: 1,
+  },
+  regiaoChevron: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.full,
     backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: {
-    width: 24,
-    height: 24,
-  },
-  regiaoTexts: {
-    flexShrink: 1,
-    gap: 1,
-  },
-  regiaoEyebrow: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Palette.textTertiary,
-    letterSpacing: 0.6,
-  },
-  regiaoValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  regiaoText: {
-    fontFamily: DisplayFont.bold,
-    fontSize: 19,
-    color: Palette.text,
-    letterSpacing: -0.3,
-    flexShrink: 1,
-  },
   filtrosBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
     backgroundColor: Palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadow.sm,
+    ...Shadow.lg,
   },
   countRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
+    minHeight: 38,
   },
   countText: {
-    fontSize: 13,
+    fontSize: 14,
     color: Palette.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   countNumber: {
+    fontFamily: DisplayFont.bold,
     fontWeight: '800',
+    fontSize: 16,
     color: Palette.text,
   },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     borderWidth: 1.5,
-    borderColor: Palette.border,
+    borderColor: Palette.primarySubtle,
+    backgroundColor: Palette.primaryLight,
     borderRadius: Radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 38,
   },
   sortBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: Palette.textSecondary,
+    fontSize: 13,
+    fontWeight: '800',
+    color: Palette.primaryDark,
   },
   sortBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: Palette.overlayLight,
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
     padding: Spacing.xl,
-    paddingTop: 90,
+    paddingTop: 100,
   },
   sortMenu: {
-    width: 200,
+    width: 220,
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
     ...Shadow.lg,
   },
   sortMenuTitle: {
     fontSize: 11,
     fontWeight: '700',
     color: Palette.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
+    letterSpacing: 0.8,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
   },
   sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   sortOptionText: {
     fontSize: 14,
@@ -441,59 +736,84 @@ const styles = StyleSheet.create({
     color: Palette.primary,
     fontWeight: '700',
   },
-  empresaBanner: {
+  chipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+  },
+  activeChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginHorizontal: Spacing.lg,
+    maxWidth: 220,
     backgroundColor: Palette.primaryLight,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Palette.primaryMid,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    alignSelf: 'flex-start',
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+    minHeight: 36,
   },
-  empresaBannerText: {
-    fontSize: 12,
+  activeChipText: {
+    flexShrink: 1,
+    fontSize: 13,
     fontWeight: '700',
     color: Palette.primaryDark,
-    flexShrink: 1,
+  },
+  clearChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Palette.borderStrong,
+    backgroundColor: Palette.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 36,
+  },
+  clearChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.textSecondary,
   },
   categoryRow: {
-    paddingHorizontal: Spacing.lg,
-    gap: 8,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.sm,
   },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: Radius.full,
     borderWidth: 1.5,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surface,
+    borderColor: Palette.borderLight,
+    backgroundColor: Palette.surfaceVariant,
+    minHeight: 42,
   },
   categoryChipActive: {
     borderColor: Palette.primary,
     backgroundColor: Palette.primary,
-    ...Shadow.xs,
+    ...Shadow.md,
   },
   categoryText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Palette.textSecondary,
   },
-  categoryTextActive: { color: Palette.white, fontWeight: '700' },
+  categoryTextActive: { color: Palette.white, fontWeight: '800' },
 
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -5,
+    right: -5,
+    minWidth: 19,
+    height: 19,
+    borderRadius: 10,
     paddingHorizontal: 4,
     backgroundColor: Palette.white,
     alignItems: 'center',
@@ -501,9 +821,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Palette.primary,
   },
-  badgeText: { fontSize: 9.5, fontWeight: '800', color: Palette.primary },
+  badgeText: { fontSize: 10, fontWeight: '800', color: Palette.primary },
 
-  skeletons: { paddingTop: 4 },
-  list: { paddingTop: 4, paddingBottom: 32 },
-  footerLoader: { paddingVertical: 20 },
+  skeletons: { paddingTop: Spacing.md },
+  list: { paddingTop: Spacing.md, paddingBottom: Spacing.xxxl },
+  footerLoader: { paddingVertical: Spacing.xl },
+
 });
