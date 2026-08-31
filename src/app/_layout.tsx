@@ -68,6 +68,7 @@ export default function RootLayout() {
         <Stack.Screen name="empreendimento/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="hotsites" options={{ headerShown: false }} />
         <Stack.Screen name="fale-conosco" options={{ headerShown: false }} />
+        <Stack.Screen name="dashboard" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </QueryClientProvider>

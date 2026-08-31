@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -32,7 +33,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEmpreendimento } from '@/hooks/useEmpreendimentos';
 import { useAuthStore } from '@/store/auth';
-import { postAcesso, registrarInteresse } from '@/services/empreendimentos';
+import { postAcesso, registrarInteresse, setAnuncioPausado } from '@/services/empreendimentos';
+import { UnitEditSheet } from '@/components/UnitEditSheet';
+import toast from '@/utils/toast';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SalesTable } from '@/components/SalesTable';
 import { EmptyState } from '@/components/EmptyState';
@@ -270,7 +273,8 @@ export default function EmpreendimentoDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const userId = useAuthStore((s) => s.user?.id);
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id;
   const insets = useSafeAreaInsets();
   const [photoIndex, setPhotoIndex] = useState(0);
   const { data, isLoading, isError, refetch, isRefetching } = useEmpreendimento(id);
@@ -283,6 +287,8 @@ export default function EmpreendimentoDetail() {
   const [descExpanded, setDescExpanded] = useState(false);
   const [parcelamentoUnit, setParcelamentoUnit] = useState<UnidadeItem | null>(null);
   const [hotsiteVisible, setHotsiteVisible] = useState(false);
+  const [editUnit, setEditUnit] = useState<UnidadeItem | null>(null);
+  const [pausing, setPausing] = useState(false);
 
   // ── Motion (60fps, UI-thread) ──
   const reduceMotion = useReducedMotion();
@@ -592,6 +598,25 @@ export default function EmpreendimentoDetail() {
   const documentos = getDocumentos(e);
   const unitCount = e.unidades?.length ?? 0;
   const hasParcelamentos = (e.parcelamentos?.length ?? 0) > 0;
+  // Dono do anúncio (construtora): pode editar unidades e pausar o anúncio —
+  // mesma regra visual do PWA (can update Empreendimento da própria empresa).
+  const isOwner =
+    user?.tipo_usuario === 'construtora' &&
+    !!user?.empresa_id &&
+    user.empresa_id === (e.empresa_id ?? e.empresa?.id);
+
+  async function handleTogglePause(next: boolean) {
+    setPausing(true);
+    try {
+      await setAnuncioPausado(e.id, next);
+      await refetch();
+      toast.success(next ? 'Anúncio interrompido.' : 'Anúncio publicado!');
+    } catch {
+      toast.error('Não foi possível alterar o anúncio.');
+    } finally {
+      setPausing(false);
+    }
+  }
   const hasHeroCarousel = photos.length > 0;
 
   return (
@@ -840,6 +865,46 @@ export default function EmpreendimentoDetail() {
                 </View>
                 <Ionicons name="chevron-forward" size={17} color={Palette.accent} />
               </PressableScale>
+            </Reveal>
+          )}
+
+          {/* Gestão do anúncio — só o dono (construtora) vê */}
+          {isOwner && (
+            <Reveal delay={235} disabled={reduceMotion}>
+              <View style={styles.manageCard}>
+                <View
+                  style={[
+                    styles.manageIcon,
+                    { backgroundColor: e.anuncio_pausado ? Palette.errorBg : Palette.successBg },
+                  ]}
+                >
+                  <Ionicons
+                    name={e.anuncio_pausado ? 'pause' : 'megaphone-outline'}
+                    size={17}
+                    color={e.anuncio_pausado ? Palette.error : Palette.success}
+                  />
+                </View>
+                <View style={styles.manageTexts}>
+                  <Text style={styles.manageTitle}>
+                    {e.anuncio_pausado ? 'Anúncio interrompido' : 'Anúncio ativo'}
+                  </Text>
+                  <Text style={styles.manageSub} numberOfLines={2}>
+                    {e.anuncio_pausado
+                      ? 'Seu empreendimento não aparece nas buscas.'
+                      : 'Visível para corretores e imobiliárias.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={!e.anuncio_pausado}
+                  onValueChange={(v) => handleTogglePause(!v)}
+                  disabled={pausing}
+                  trackColor={{ false: Palette.borderStrong, true: Palette.primaryMid }}
+                  thumbColor={e.anuncio_pausado ? Palette.surface : Palette.primary}
+                  accessibilityLabel={
+                    e.anuncio_pausado ? 'Publicar anúncio' : 'Interromper anúncio'
+                  }
+                />
+              </View>
             </Reveal>
           )}
 
@@ -1109,21 +1174,30 @@ export default function EmpreendimentoDetail() {
               <SectionHeader title="Tabela de vendas" count={unitCount} />
               {isAuthenticated ? (
                 <>
-                  {hasParcelamentos && (
+                  {isOwner ? (
+                    <Text style={styles.sectionHint}>
+                      Toque em uma unidade para editar status e valor.
+                    </Text>
+                  ) : hasParcelamentos ? (
                     <Text style={styles.sectionHint}>
                       Toque em uma unidade para ver o plano de pagamento.
                     </Text>
-                  )}
+                  ) : null}
                   <SalesTable
                     units={e.unidades ?? []}
                     varios_blocos={e.varios_blocos}
                     onUnitPress={
-                      hasParcelamentos
+                      isOwner
                         ? (unit) => {
                             tapLight();
-                            setParcelamentoUnit(unit);
+                            setEditUnit(unit);
                           }
-                        : undefined
+                        : hasParcelamentos
+                          ? (unit) => {
+                              tapLight();
+                              setParcelamentoUnit(unit);
+                            }
+                          : undefined
                     }
                   />
                 </>
@@ -1183,6 +1257,16 @@ export default function EmpreendimentoDetail() {
         initialIndex={plantasLightboxIndex}
         visible={plantasLightboxVisible}
         onClose={() => setPlantasLightboxVisible(false)}
+      />
+
+      {/* Edição de unidade (dono construtora) */}
+      <UnitEditSheet
+        visible={editUnit != null}
+        onClose={() => setEditUnit(null)}
+        unit={editUnit}
+        empreendimentoId={e.id}
+        allUnits={e.unidades ?? []}
+        onSaved={() => refetch()}
       />
 
       {/* Gerar Hotsite */}
@@ -1593,6 +1677,40 @@ const styles = StyleSheet.create({
   contactInfo: { flex: 1, gap: 3 },
   contactName: { fontSize: 14.5, fontWeight: '700', color: Palette.text },
   contactPhone: { fontSize: 13.5, color: Palette.textSecondary, fontWeight: '500' },
+
+  // Gestão do anúncio (dono)
+  manageCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 64,
+    ...Shadow.xs,
+  },
+  manageIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageTexts: { flex: 1, gap: 2 },
+  manageTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  manageSub: {
+    fontSize: 12.5,
+    color: Palette.textSecondary,
+    lineHeight: 17,
+  },
 
   // Hotsite CTA
   hotsiteBtn: {

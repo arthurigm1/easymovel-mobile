@@ -75,6 +75,8 @@ export interface Empreendimento {
   id: string;
   nome_empreendimento: string;
   empresa: EmpresaInfo;
+  /** Id da empresa dona — vem na raiz do detalhe (empresa.id não é exposto). */
+  empresa_id?: string;
   finalidade?: string;
   status?: string;
   tipo_produto?: string;

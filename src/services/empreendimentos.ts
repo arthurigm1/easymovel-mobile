@@ -4,6 +4,7 @@ import type {
   Empreendimento,
   FiltrarEmpreendimentosParams,
   PaginatedResponse,
+  UnidadeItem,
 } from '@/types';
 
 export async function filtrarEmpreendimentos(params: FiltrarEmpreendimentosParams) {
@@ -50,4 +51,39 @@ export async function consultarInteresse(empreendimento_id: string): Promise<boo
 
 export async function esqueceuSenha(email: string, senha_nova: string): Promise<void> {
   await api.post('/esqueci-senha', { email, senha_nova });
+}
+
+// ─── Gestão (dono construtora) ───────────────────────────────────────────────
+
+// Mesmo contrato do PWA (Unidades/Edit/services.js): envia a lista completa de
+// unidades com os campos editáveis + tabela_atualizada.
+export async function atualizarUnidades(
+  empreendimentoId: string,
+  unidades: UnidadeItem[]
+): Promise<void> {
+  await api.put(`/empreendimentos/${empreendimentoId}`, {
+    unidades: unidades.map((u) => ({
+      id: u.id,
+      bloco: u.bloco,
+      descricao: u.descricao,
+      tipologia: u.tipologia,
+      area: u.area,
+      area_externa: u.area_externa,
+      quant_quartos: u.quant_quartos,
+      quant_suites: u.quant_suites,
+      quant_banheiros: u.quant_banheiros,
+      quant_vagas: u.quant_vagas,
+      status: u.status,
+      valor: u.valor,
+    })),
+    tabela_atualizada: new Date().toISOString(),
+  });
+}
+
+// Pausar/publicar anúncio — mesmo handlePause do PWA.
+export async function setAnuncioPausado(
+  empreendimentoId: string,
+  pausado: boolean
+): Promise<void> {
+  await api.put(`/empreendimentos/${empreendimentoId}`, { anuncio_pausado: pausado });
 }

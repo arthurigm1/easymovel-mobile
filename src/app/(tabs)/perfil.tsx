@@ -412,6 +412,12 @@ export default function PerfilScreen() {
                   })
                 }
               />
+              <Divider />
+              <MenuItem
+                icon="stats-chart-outline"
+                label="Dashboard de acessos"
+                onPress={() => router.push('/dashboard')}
+              />
             </>
           ) : null}
           <Divider />
