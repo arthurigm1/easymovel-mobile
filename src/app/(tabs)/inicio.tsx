@@ -127,6 +127,7 @@ export default function InicioScreen() {
     bairro_nome?: string;
     empreendimento_nome?: string;
     endereco?: string;
+    meus?: string;
   }>();
 
   const [filterVisible, setFilterVisible] = useState(false);
@@ -158,7 +159,8 @@ export default function InicioScreen() {
       params.regiao ||
       params.bairro_id ||
       params.empreendimento_nome ||
-      params.endereco
+      params.endereco ||
+      params.meus
     ) {
       setActiveFilters((prev) => ({
         ...prev,
@@ -172,6 +174,9 @@ export default function InicioScreen() {
           ? { empreendimentos: [{ id: params.empreendimento_nome, label: params.empreendimento_nome }] }
           : {}),
         ...(params.endereco ? { endereco: params.endereco } : {}),
+        // "Meus Empreendimentos" (construtora): mesma query do PWA —
+        // empresa_id do usuário + incluir_nao_publicados=true.
+        ...(params.meus ? { incluir_nao_publicados: true } : {}),
       }));
     }
   }, [
@@ -181,6 +186,7 @@ export default function InicioScreen() {
     params.bairro_id,
     params.empreendimento_nome,
     params.endereco,
+    params.meus,
   ]);
 
   const activeCount = [
@@ -224,6 +230,7 @@ export default function InicioScreen() {
       construtora: activeFilters.construtoras?.map((c) => c.id),
       comodidades: activeFilters.comodidades,
       endereco: activeFilters.endereco,
+      incluir_nao_publicados: activeFilters.incluir_nao_publicados,
     });
 
   const items: Empreendimento[] = data?.pages.flatMap((p) => p.dados) ?? [];

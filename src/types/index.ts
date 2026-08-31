@@ -194,6 +194,8 @@ export interface FilterState {
   construtoras?: SelectOption[];
   comodidades?: string[];
   endereco?: string;
+  /** Modo "Meus Empreendimentos" (construtora): inclui não publicados. */
+  incluir_nao_publicados?: boolean;
 }
 
 export interface SugestoesFiltro {
@@ -225,6 +227,7 @@ export interface FiltrarEmpreendimentosParams {
   construtora?: string[];
   comodidades?: string[];
   endereco?: string;
+  incluir_nao_publicados?: boolean;
 }
 
 export interface User {
@@ -236,4 +239,6 @@ export interface User {
   regiao?: string;
   link_foto?: string;
   receber_notificacao?: boolean;
+  /** 'construtora' | 'imobiliaria' | 'corretor_autonomo' — mesmo campo do PWA. */
+  tipo_usuario?: string;
 }

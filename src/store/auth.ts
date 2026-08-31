@@ -57,6 +57,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         regiao?: string;
         link_foto?: string;
         receber_notificacao?: boolean;
+        tipo_usuario?: string;
       };
     };
 
@@ -69,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       regiao: usuario.regiao,
       link_foto: usuario.link_foto,
       receber_notificacao: usuario.receber_notificacao,
+      tipo_usuario: usuario.tipo_usuario,
     };
 
     await Promise.all([

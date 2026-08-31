@@ -395,6 +395,31 @@ export default function PerfilScreen() {
             label="Meus Hotsites"
             onPress={() => router.push('/hotsites')}
           />
+          {user?.tipo_usuario === 'construtora' && user?.empresa_id ? (
+            <>
+              <Divider />
+              <MenuItem
+                icon="business-outline"
+                label="Meus Empreendimentos"
+                onPress={() =>
+                  router.push({
+                    pathname: '/(tabs)/inicio',
+                    params: {
+                      empresa_id: user.empresa_id!,
+                      empresa_nome: 'Meus Empreendimentos',
+                      meus: '1',
+                    },
+                  })
+                }
+              />
+            </>
+          ) : null}
+          <Divider />
+          <MenuItem
+            icon="chatbubbles-outline"
+            label="Fale Conosco"
+            onPress={() => router.push('/fale-conosco')}
+          />
         </MenuSection>
 
         <MenuSection title="Ajuda">
