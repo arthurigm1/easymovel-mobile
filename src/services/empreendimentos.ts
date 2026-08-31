@@ -87,3 +87,30 @@ export async function setAnuncioPausado(
 ): Promise<void> {
   await api.put(`/empreendimentos/${empreendimentoId}`, { anuncio_pausado: pausado });
 }
+
+// Corretores interessados num pré-lançamento (visão do dono).
+export interface InteressadoPreLancamento {
+  id?: string;
+  criado_em?: string;
+  usuario?: {
+    id: string;
+    nome_completo?: string;
+    email?: string;
+    celular?: string;
+    tipo_usuario?: string;
+    empresa?: {
+      nome_mascara?: string;
+      nome_fantasia?: string;
+      razao_social?: string;
+    };
+  };
+}
+
+export async function getInteressadosPreLancamento(
+  empreendimentoId: string
+): Promise<InteressadoPreLancamento[]> {
+  const response = await api.get<ApiResponse<InteressadoPreLancamento[]>>(
+    `/consultar-interesses-pre-lancamento/${empreendimentoId}`
+  );
+  return response.data.dados ?? [];
+}

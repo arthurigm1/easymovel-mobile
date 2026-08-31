@@ -35,6 +35,7 @@ import { useEmpreendimento } from '@/hooks/useEmpreendimentos';
 import { useAuthStore } from '@/store/auth';
 import { postAcesso, registrarInteresse, setAnuncioPausado } from '@/services/empreendimentos';
 import { UnitEditSheet } from '@/components/UnitEditSheet';
+import { InteressadosSheet } from '@/components/InteressadosSheet';
 import toast from '@/utils/toast';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SalesTable } from '@/components/SalesTable';
@@ -289,6 +290,7 @@ export default function EmpreendimentoDetail() {
   const [hotsiteVisible, setHotsiteVisible] = useState(false);
   const [editUnit, setEditUnit] = useState<UnidadeItem | null>(null);
   const [pausing, setPausing] = useState(false);
+  const [interessadosVisible, setInteressadosVisible] = useState(false);
 
   // ── Motion (60fps, UI-thread) ──
   const reduceMotion = useReducedMotion();
@@ -905,6 +907,22 @@ export default function EmpreendimentoDetail() {
                   }
                 />
               </View>
+              {isPreLancamento && (
+                <TouchableOpacity
+                  style={styles.interessadosBtn}
+                  onPress={() => {
+                    tapLight();
+                    setInteressadosVisible(true);
+                  }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver corretores interessados neste pré-lançamento"
+                >
+                  <Ionicons name="people-outline" size={16} color={Palette.primary} />
+                  <Text style={styles.interessadosBtnText}>Ver interessados</Text>
+                  <Ionicons name="chevron-forward" size={14} color={Palette.primary} />
+                </TouchableOpacity>
+              )}
             </Reveal>
           )}
 
@@ -1257,6 +1275,14 @@ export default function EmpreendimentoDetail() {
         initialIndex={plantasLightboxIndex}
         visible={plantasLightboxVisible}
         onClose={() => setPlantasLightboxVisible(false)}
+      />
+
+      {/* Interessados no pré-lançamento (dono construtora) */}
+      <InteressadosSheet
+        visible={interessadosVisible}
+        onClose={() => setInteressadosVisible(false)}
+        empreendimentoId={e.id}
+        empreendimentoNome={e.nome_empreendimento}
       />
 
       {/* Edição de unidade (dono construtora) */}
@@ -1710,6 +1736,24 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: Palette.textSecondary,
     lineHeight: 17,
+  },
+  interessadosBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primaryMid,
+    borderRadius: Radius.lg,
+    paddingVertical: 12,
+    minHeight: 44,
+    marginTop: 8,
+  },
+  interessadosBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: Palette.primary,
   },
 
   // Hotsite CTA
