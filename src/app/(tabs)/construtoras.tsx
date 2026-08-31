@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
+  Animated,
   FlatList,
-  Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useConstrutoras } from '@/hooks/useConstrutoras';
 import { EmptyState } from '@/components/EmptyState';
-import { SkeletonRow } from '@/components/SkeletonCard';
 import { REGIAO_OPTIONS } from '@/components/FilterSheet';
 import { getEmpresaNome } from '@/utils/format';
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
@@ -30,10 +30,30 @@ const REGIOES: { value: string; label: string }[] = [
   ...REGIAO_OPTIONS,
 ];
 
+// Considera "Nova" uma construtora cadastrada nos últimos 45 dias — só usa o
+// campo criado_em que já vem da API (sem inventar dado). Se a data faltar ou
+// for inválida, simplesmente não exibe o selo.
+function isRecente(criadoEm?: string): boolean {
+  if (!criadoEm) return false;
+  const t = new Date(criadoEm).getTime();
+  if (Number.isNaN(t)) return false;
+  const dias = (Date.now() - t) / 86400000;
+  return dias >= 0 && dias <= 45;
+}
+
 function ConstrutorCard({ empresa }: { empresa: Empresa }) {
   const router = useRouter();
   const nome = getEmpresaNome(empresa);
   const logo = empresa.anexos?.find((a) => a.categoria === 'logo_empresa')?.link;
+  const nova = isRecente(empresa.criado_em);
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function pressIn() {
+    Animated.spring(scale, { toValue: 0.955, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  }
+  function pressOut() {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 7 }).start();
+  }
 
   function handlePress() {
     router.push({
@@ -43,34 +63,66 @@ function ConstrutorCard({ empresa }: { empresa: Empresa }) {
   }
 
   return (
-    <TouchableOpacity style={cardStyles.card} onPress={handlePress} activeOpacity={0.8}>
-      <View style={cardStyles.logoBox}>
-        {logo ? (
-          <Image source={logo} style={cardStyles.logo} contentFit="contain" cachePolicy="memory-disk" />
-        ) : (
-          <View style={cardStyles.logoPlaceholder}>
-            <Ionicons name="business-outline" size={22} color={Palette.textTertiary} />
+    <Animated.View style={[cardStyles.cardWrap, { transform: [{ scale }] }]}>
+      <TouchableOpacity
+        style={cardStyles.card}
+        onPress={handlePress}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel={`Ver empreendimentos de ${nome}${nova ? ', construtora nova' : ''}`}
+      >
+        <View style={cardStyles.logoBox}>
+          {logo ? (
+            <Image source={logo} style={cardStyles.logo} contentFit="contain" cachePolicy="memory-disk" />
+          ) : (
+            <View style={cardStyles.logoPlaceholder}>
+              <Ionicons name="business" size={26} color={Palette.primaryMid} />
+            </View>
+          )}
+        </View>
+        {nova && (
+          <View style={cardStyles.novaBadge} pointerEvents="none">
+            <Ionicons name="sparkles" size={9} color={Palette.white} />
+            <Text style={cardStyles.novaText}>Nova</Text>
           </View>
         )}
-      </View>
-      <Text style={cardStyles.nome} numberOfLines={2}>{nome}</Text>
-    </TouchableOpacity>
+        <Text style={cardStyles.nome} numberOfLines={2}>{nome}</Text>
+        <View style={cardStyles.hintRow}>
+          <Text style={cardStyles.hint}>Ver imóveis</Text>
+          <Ionicons name="arrow-forward" size={11} color={Palette.primary} />
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 const cardStyles = StyleSheet.create({
+  cardWrap: { flex: 1 },
+  // O logo preenche o topo do card de ponta a ponta, sem molduras internas —
+  // uma única superfície branca limpa, com um hairline separando do nome.
   card: {
     flex: 1,
+    alignItems: 'center',
     gap: 6,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    overflow: 'hidden',
+    paddingBottom: 10,
+    ...Shadow.xs,
   },
   logoBox: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    backgroundColor: Palette.surfaceVariant,
+    backgroundColor: Palette.white,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.borderLight,
   },
   logo: { width: '100%', height: '100%' },
   logoPlaceholder: {
@@ -79,18 +131,83 @@ const cardStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  novaBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingLeft: 5,
+    paddingRight: 7,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.primary,
+    zIndex: 2,
+    ...Shadow.sm,
+  },
+  novaText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: Palette.white,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   nome: {
     fontSize: 11.5,
-    fontWeight: '600',
-    color: Palette.textSecondary,
+    fontWeight: '700',
+    color: Palette.text,
     textAlign: 'center',
+    paddingHorizontal: 8,
+    minHeight: 30,
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: -2,
+  },
+  hint: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Palette.primary,
+    letterSpacing: 0.2,
   },
 });
 
+function GridSkeleton() {
+  const pulse = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <View style={styles.list}>
+      <View style={styles.skeletonGrid}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <View key={i} style={styles.skeletonCard}>
+            <Animated.View style={[styles.skeletonLogo, { opacity: pulse }]} />
+            <Animated.View style={[styles.skeletonLine, { opacity: pulse }]} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function ConstutorasScreen() {
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [regiao, setRegiao] = useState('');
-  const [regiaoVisible, setRegiaoVisible] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
   const debouncedSearch = useDebounce(search, 400);
   const { data, isLoading, isError, refetch, isRefetching } = useConstrutoras({
     regiao: regiao || undefined,
@@ -99,74 +216,108 @@ export default function ConstutorasScreen() {
   const all: Empresa[] = data?.dados ?? [];
   const construtoras = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
-    if (!term) return all;
-    return all.filter((e) => getEmpresaNome(e).toLowerCase().includes(term));
-  }, [all, debouncedSearch]);
+    const filtered = term
+      ? all.filter((e) => getEmpresaNome(e).toLowerCase().includes(term))
+      : all;
+    const sorted = [...filtered].sort((a, b) => {
+      const cmp = getEmpresaNome(a).localeCompare(getEmpresaNome(b), 'pt-BR', { sensitivity: 'base' });
+      return sortAsc ? cmp : -cmp;
+    });
+    return sorted;
+  }, [all, debouncedSearch, sortAsc]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Construtoras</Text>
-        {construtoras.length > 0 && (
-          <Text style={styles.subtitle}>
-            <Text style={styles.subtitleNumber}>{construtoras.length}</Text> encontrada{construtoras.length !== 1 ? 's' : ''}
-          </Text>
-        )}
+        <View style={styles.headerTop}>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.title}>Construtoras</Text>
+            {construtoras.length > 0 && (
+              <Text style={styles.subtitle}>
+                {construtoras.length} parceira{construtoras.length !== 1 ? 's' : ''}
+                {regiao ? ` · ${REGIOES.find((r) => r.value === regiao)?.label}` : ''}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.sortBtn}
+            onPress={() => setSortAsc((v) => !v)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={sortAsc ? 'Ordenar de Z a A' : 'Ordenar de A a Z'}
+            accessibilityState={{ selected: true }}
+          >
+            <Ionicons name="swap-vertical" size={15} color={Palette.primary} />
+            <Text style={styles.sortBtnText}>{sortAsc ? 'A–Z' : 'Z–A'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color={Palette.textTertiary} />
+        <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+          <Ionicons
+            name="search-outline"
+            size={18}
+            color={searchFocused ? Palette.primary : Palette.textTertiary}
+          />
           <TextInput
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Buscar construtora..."
             placeholderTextColor={Palette.textTertiary}
+            returnKeyType="search"
+            accessibilityLabel="Buscar construtora"
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+            <TouchableOpacity
+              onPress={() => setSearch('')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Limpar busca"
+            >
               <Ionicons name="close-circle" size={18} color={Palette.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
-
-        <TouchableOpacity
-          style={[styles.filterBtn, regiao && styles.filterBtnActive]}
-          onPress={() => setRegiaoVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="options-outline" size={19} color={regiao ? Palette.white : Palette.textSecondary} />
-          {regiao && <View style={styles.filterDot} />}
-        </TouchableOpacity>
       </View>
 
-      <Modal visible={regiaoVisible} transparent animationType="fade" onRequestClose={() => setRegiaoVisible(false)}>
-        <TouchableOpacity style={styles.menuBackdrop} activeOpacity={1} onPress={() => setRegiaoVisible(false)}>
-          <View style={styles.menu}>
-            <Text style={styles.menuTitle}>Região</Text>
-            {REGIOES.map((r) => {
-              const active = regiao === r.value;
-              return (
-                <TouchableOpacity
-                  key={r.value}
-                  style={styles.menuOption}
-                  onPress={() => { setRegiao(r.value); setRegiaoVisible(false); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.menuOptionText, active && styles.menuOptionTextActive]}>
-                    {r.label}
-                  </Text>
-                  {active && <Ionicons name="checkmark" size={16} color={Palette.primary} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <View style={styles.pillsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pills}
+        >
+          {REGIOES.map((r) => {
+            const active = regiao === r.value;
+            return (
+              <TouchableOpacity
+                key={r.value || 'todas'}
+                style={[styles.pill, active && styles.pillActive]}
+                onPress={() => setRegiao(r.value)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Filtrar por ${r.label}`}
+              >
+                {r.value === '' && (
+                  <Ionicons
+                    name="apps"
+                    size={13}
+                    color={active ? Palette.white : Palette.textTertiary}
+                  />
+                )}
+                <Text style={[styles.pillText, active && styles.pillTextActive]}>{r.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {isLoading ? (
-        <View>{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</View>
+        <GridSkeleton />
       ) : (
         <FlatList
           key="grid-3"
@@ -176,6 +327,7 @@ export default function ConstutorasScreen() {
           columnWrapperStyle={styles.gridRow}
           renderItem={({ item }) => <ConstrutorCard empresa={item} />}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -217,23 +369,46 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  headerTitleWrap: { flex: 1, gap: 2 },
   title: {
     fontFamily: DisplayFont.extraBold,
     fontSize: 24,
     color: Palette.text,
     letterSpacing: -0.5,
   },
-  subtitle: { fontSize: 13, color: Palette.textSecondary, marginTop: 3, fontWeight: '500' },
-  subtitleNumber: { fontWeight: '800', color: Palette.text },
-  searchRow: {
+  subtitle: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Palette.textTertiary,
+  },
+  sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 5,
+    height: 40,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primarySubtle,
+  },
+  sortBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Palette.primaryDark,
+    letterSpacing: 0.2,
+  },
+  searchRow: {
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   searchBox: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Palette.surface,
@@ -241,7 +416,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     gap: 8,
+    borderWidth: 1.5,
+    borderColor: Palette.borderLight,
     ...Shadow.xs,
+  },
+  searchBoxFocused: {
+    borderColor: Palette.primary,
+    ...Shadow.sm,
   },
   searchInput: {
     flex: 1,
@@ -249,70 +430,70 @@ const styles = StyleSheet.create({
     color: Palette.text,
     padding: 0,
   },
-  filterBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Palette.surface,
-    ...Shadow.xs,
+  pillsWrap: {
+    marginBottom: Spacing.md,
   },
-  filterBtnActive: {
-    backgroundColor: Palette.primary,
+  pills: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 2,
   },
-  filterDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Palette.white,
-    borderWidth: 1.5,
-    borderColor: Palette.primary,
-  },
-  list: { paddingTop: 4, paddingBottom: 32, paddingHorizontal: Spacing.lg },
-  gridRow: { gap: 10, marginBottom: 16 },
-
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(22,22,29,0.3)',
-    alignItems: 'flex-end',
-    padding: Spacing.xl,
-    paddingTop: 96,
-  },
-  menu: {
-    width: 210,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.sm,
-    ...Shadow.lg,
-  },
-  menuTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Palette.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  menuOption: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 5,
+    height: 36,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.border,
   },
-  menuOptionText: {
-    fontSize: 14,
+  pillActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+    ...Shadow.xs,
+  },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: Palette.textSecondary,
-    fontWeight: '500',
   },
-  menuOptionTextActive: {
-    color: Palette.primary,
+  pillTextActive: {
+    color: Palette.white,
     fontWeight: '700',
+  },
+  list: { paddingTop: 2, paddingBottom: 32, paddingHorizontal: Spacing.lg },
+  gridRow: { gap: 10, marginBottom: 10 },
+
+  // Skeleton
+  skeletonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  skeletonCard: {
+    width: '31.5%',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    padding: Spacing.sm,
+  },
+  skeletonLogo: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.surfaceVariant,
+  },
+  skeletonLine: {
+    width: '70%',
+    height: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceVariant,
+    marginBottom: 4,
   },
 });

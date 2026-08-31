@@ -41,13 +41,15 @@ export default function RootLayout() {
     initialize();
   }, [initialize]);
 
+  const bootReady = !isLoading && fontsLoaded;
+
   useEffect(() => {
-    if (!isLoading && fontsLoaded) {
+    if (bootReady) {
       SplashScreen.hideAsync();
     }
-  }, [isLoading, fontsLoaded]);
+  }, [bootReady]);
 
-  if (isLoading || !fontsLoaded) {
+  if (!bootReady) {
     return (
       <View style={styles.splash}>
         <ActivityIndicator size="large" color={Palette.primary} />
@@ -64,6 +66,7 @@ export default function RootLayout() {
         <Stack.Screen name="esqueci-senha" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="empreendimento/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="hotsites" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </QueryClientProvider>

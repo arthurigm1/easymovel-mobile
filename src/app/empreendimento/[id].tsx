@@ -6,16 +6,27 @@ import {
   Dimensions,
   FlatList,
   Linking,
-  Platform,
+  Pressable,
   RefreshControl,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Extrapolation,
+  FadeInDown,
+  interpolate,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +39,13 @@ import { EmptyState } from '@/components/EmptyState';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { StatusStepper } from '@/components/StatusStepper';
+import { MapPreview } from '@/components/MapPreview';
+import { FavoriteButton } from '@/components/FavoriteButton';
+import { ContactCTA } from '@/components/ContactCTA';
+import { ParcelamentoSheet } from '@/components/ParcelamentoSheet';
+import { GerarHotsiteSheet } from '@/components/GerarHotsiteSheet';
+import { tapLight, tapMedium } from '@/utils/haptics';
+import type { UnidadeItem } from '@/types';
 import {
   formatCurrency,
   formatDate,
@@ -44,6 +62,16 @@ import {
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const HERO_HEIGHT = 400;
+const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+
+// Amenidades agrupadas como no PWA ("O que esse empreendimento oferece"). A API
+// retorna comodidade.categoria em uma destas três; qualquer outra cai em "Outros".
+const AMENITY_GROUPS: { key: string; label: string; icon: IconName }[] = [
+  { key: 'Esporte e Lazer', label: 'Esportes e Lazer', icon: 'barbell-outline' },
+  { key: 'Segurança', label: 'Segurança', icon: 'shield-checkmark-outline' },
+  { key: 'Facilidades', label: 'Facilidades', icon: 'bulb-outline' },
+];
 
 function getYoutubeThumbnail(url?: string): string | null {
   if (!url) return null;
@@ -51,27 +79,95 @@ function getYoutubeThumbnail(url?: string): string | null {
   return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
 }
 
-const ALL_TABS = [
-  { key: 'overview', label: 'Visão Geral' },
-  { key: 'photos', label: 'Fotos' },
-  { key: 'plantas', label: 'Plantas' },
-  { key: 'tabela', label: 'Tabela de Vendas' },
-] as const;
-type TabKey = (typeof ALL_TABS)[number]['key'];
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+type Fact = { icon: IconName; value: string; label: string };
 
-function InfoCard({ icon, label, value }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  value: string;
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Staggered entrance wrapper — sections ease up on mount. Falls back to a plain
+// View (no entering) when reduced motion is requested.
+function Reveal({
+  delay = 0,
+  disabled,
+  style,
+  children,
+}: {
+  delay?: number;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
 }) {
   return (
-    <View style={infoStyles.card}>
+    <Animated.View
+      style={style}
+      entering={disabled ? undefined : FadeInDown.duration(420).delay(delay)}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+// Gentle press-in scale for tappable rows/CTAs, driven on the UI thread.
+function PressableScale({
+  onPress,
+  disabled,
+  reduceMotion,
+  style,
+  children,
+  accessibilityRole,
+  accessibilityLabel,
+  accessibilityState,
+}: {
+  onPress?: () => void;
+  disabled?: boolean;
+  reduceMotion?: boolean;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+  accessibilityRole?: React.ComponentProps<typeof Pressable>['accessibilityRole'];
+  accessibilityLabel?: string;
+  accessibilityState?: React.ComponentProps<typeof Pressable>['accessibilityState'];
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => {
+        if (!reduceMotion) scale.value = withTiming(0.97, { duration: 110 });
+      }}
+      onPressOut={() => {
+        if (!reduceMotion) scale.value = withTiming(1, { duration: 150 });
+      }}
+      style={[style, animStyle]}
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
+    >
+      {children}
+    </AnimatedPressable>
+  );
+}
+
+// Calm, minimal section header — a confident title with an optional muted count.
+function SectionHeader({ title, count }: { title: string; count?: number }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {count != null && <Text style={styles.sectionCount}>{count}</Text>}
+    </View>
+  );
+}
+
+function InfoCard({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <View style={infoStyles.card} accessible accessibilityLabel={`${label}: ${value}`}>
       <View style={infoStyles.iconWrap}>
-        <Ionicons name={icon} size={18} color={Palette.primary} />
+        <Ionicons name={icon} size={16} color={Palette.primary} />
       </View>
       <View style={infoStyles.texts}>
-        <Text style={infoStyles.label}>{label}</Text>
-        <Text style={infoStyles.value}>{value}</Text>
+        <Text style={infoStyles.label} numberOfLines={2}>{label}</Text>
+        <Text style={infoStyles.value} numberOfLines={2}>{value}</Text>
       </View>
     </View>
   );
@@ -87,6 +183,8 @@ function LoginPrompt({ message, compact }: { message: string; compact?: boolean 
         style={[loginPromptStyles.btn, compact && loginPromptStyles.btnCompact]}
         onPress={() => router.push('/login')}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Entrar na sua conta"
       >
         <Text style={[loginPromptStyles.btnText, compact && loginPromptStyles.btnTextCompact]}>Entrar</Text>
       </TouchableOpacity>
@@ -97,9 +195,14 @@ function LoginPrompt({ message, compact }: { message: string; compact?: boolean 
 const loginPromptStyles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 40,
+    gap: 12,
+    paddingVertical: 36,
     paddingHorizontal: Spacing.xl,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    ...Shadow.xs,
   },
   wrapCompact: {
     flex: 1,
@@ -108,38 +211,27 @@ const loginPromptStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 0,
     paddingHorizontal: 0,
-    gap: 8,
+    gap: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+    ...Shadow.none,
   },
-  text: {
-    fontSize: 14,
-    color: Palette.textSecondary,
-    textAlign: 'center',
-  },
-  textCompact: {
-    flex: 1,
-    fontSize: 12.5,
-    textAlign: 'left',
-  },
+  text: { fontSize: 14, color: Palette.textSecondary, textAlign: 'center', lineHeight: 20 },
+  textCompact: { flex: 1, fontSize: 13, textAlign: 'left' },
   btn: {
     backgroundColor: Palette.primary,
     borderRadius: Radius.md,
-    paddingHorizontal: 24,
+    paddingHorizontal: 26,
     paddingVertical: 12,
     marginTop: 4,
+    minHeight: 44,
+    justifyContent: 'center',
+    ...Shadow.sm,
   },
-  btnCompact: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginTop: 0,
-  },
-  btnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Palette.white,
-  },
-  btnTextCompact: {
-    fontSize: 12.5,
-  },
+  btnCompact: { paddingHorizontal: 16, paddingVertical: 10, marginTop: 0, minHeight: 40, ...Shadow.none },
+  btnText: { fontSize: 14, fontWeight: '700', color: Palette.white },
+  btnTextCompact: { fontSize: 13 },
 });
 
 const infoStyles = StyleSheet.create({
@@ -150,39 +242,104 @@ const infoStyles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: 14,
-    ...Shadow.xs,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
     flex: 1,
     minWidth: '47%',
   },
   iconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   texts: { flex: 1 },
-  label: { fontSize: 11, color: Palette.textTertiary, fontWeight: '600' },
-  value: { fontSize: 14, color: Palette.text, fontWeight: '700', marginTop: 2 },
+  label: {
+    fontSize: 11,
+    color: Palette.textTertiary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  value: { fontSize: 14, color: Palette.text, fontWeight: '700', marginTop: 3, lineHeight: 18 },
 });
+
 export default function EmpreendimentoDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const userId = useAuthStore((s) => s.user?.id);
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [photoIndex, setPhotoIndex] = useState(0);
   const { data, isLoading, isError, refetch, isRefetching } = useEmpreendimento(id);
-  const photosRef = useRef<FlatList>(null);
+  const heroRef = useRef<FlatList>(null);
   const [interesseLoading, setInteresseLoading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [plantasLightboxIndex, setPlantasLightboxIndex] = useState(0);
   const [plantasLightboxVisible, setPlantasLightboxVisible] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const [comodidadesExpanded, setComodidadesExpanded] = useState(false);
+  const [parcelamentoUnit, setParcelamentoUnit] = useState<UnidadeItem | null>(null);
+  const [hotsiteVisible, setHotsiteVisible] = useState(false);
+
+  // ── Motion (60fps, UI-thread) ──
+  const reduceMotion = useReducedMotion();
+  const scrollY = useSharedValue(0);
+  const topInset = insets.top;
+  const [headerActive, setHeaderActive] = useState(false);
+  const headerActiveSV = useSharedValue(false);
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+    const active = event.contentOffset.y > HERO_HEIGHT - topInset - 96;
+    if (active !== headerActiveSV.value) {
+      headerActiveSV.value = active;
+      runOnJS(setHeaderActive)(active);
+    }
+  });
+
+  // Hero parallax: lags on scroll-down, zooms on over-scroll (pull-to-refresh).
+  const heroParallaxStyle = useAnimatedStyle(() => {
+    if (reduceMotion) return {};
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollY.value,
+            [-HERO_HEIGHT, 0, HERO_HEIGHT],
+            [-HERO_HEIGHT / 2, 0, HERO_HEIGHT * 0.34],
+            Extrapolation.CLAMP,
+          ),
+        },
+        {
+          scale: interpolate(
+            scrollY.value,
+            [-HERO_HEIGHT, 0],
+            [1.6, 1],
+            Extrapolation.CLAMP,
+          ),
+        },
+      ],
+    };
+  });
+
+  // Collapsing compact header: fades/slides in once the hero scrolls away.
+  const compactHeaderStyle = useAnimatedStyle(() => {
+    const start = HERO_HEIGHT - topInset - 150;
+    const end = HERO_HEIGHT - topInset - 74;
+    return {
+      opacity: interpolate(scrollY.value, [start, end], [0, 1], Extrapolation.CLAMP),
+      transform: [
+        {
+          translateY: reduceMotion
+            ? 0
+            : interpolate(scrollY.value, [start, end], [-10, 0], Extrapolation.CLAMP),
+        },
+      ],
+    };
+  });
 
   function openLightbox(index: number) {
     setLightboxIndex(index);
@@ -239,7 +396,7 @@ export default function EmpreendimentoDetail() {
           onPress: async () => {
             setInteresseLoading(true);
             try {
-              await registrarInteresse(empreendimentoId);
+              await registrarInteresse(empreendimentoId, userId ?? '');
               Alert.alert('Interesse registrado!', 'Nossa equipe entrará em contato em breve.');
             } catch {
               Alert.alert('Erro', 'Não foi possível registrar seu interesse. Tente novamente.');
@@ -258,14 +415,22 @@ export default function EmpreendimentoDetail() {
         <View style={styles.skeletonHero} />
         <View style={styles.skeletonBody}>
           <View style={[styles.skeletonLine, { width: '40%', height: 12 }]} />
-          <View style={[styles.skeletonLine, { width: '85%', height: 22 }]} />
+          <View style={[styles.skeletonLine, { width: '85%', height: 24 }]} />
           <View style={[styles.skeletonLine, { width: '65%', height: 14 }]} />
           <View style={styles.skeletonRow}>
-            <View style={[styles.skeletonChip]} />
-            <View style={[styles.skeletonChip]} />
-            <View style={[styles.skeletonChip]} />
+            <View style={styles.skeletonChip} />
+            <View style={styles.skeletonChip} />
+            <View style={styles.skeletonChip} />
           </View>
-          <View style={[styles.skeletonLine, { width: '50%', height: 28, marginTop: 8 }]} />
+          <View style={[styles.skeletonCard, { marginTop: 8 }]} />
+          <View style={styles.skeletonGridRow}>
+            <View style={styles.skeletonGridItem} />
+            <View style={styles.skeletonGridItem} />
+          </View>
+          <View style={styles.skeletonGridRow}>
+            <View style={styles.skeletonGridItem} />
+            <View style={styles.skeletonGridItem} />
+          </View>
         </View>
         <ActivityIndicator
           size="small"
@@ -276,7 +441,7 @@ export default function EmpreendimentoDetail() {
     );
   }
 
-  if (isError || (!isLoading && !data?.dados)) {
+  if (isError || !data?.dados) {
     return (
       <SafeAreaView style={styles.center}>
         <EmptyState
@@ -296,7 +461,11 @@ export default function EmpreendimentoDetail() {
   const logoUrl = getEmpresaLogo(e.empresa);
   const empresaNome = getEmpresaNome(e.empresa);
   const isPreLancamento = ['pre-lancamento', 'Pré-Lançamento', 'pre lancamento'].includes(e.status ?? '');
-  const hasCoords = !!(e.latitude && e.longitude);
+  // lat/lng vêm como Float com default 0 no banco (e podem ser null quando o
+  // geocoding cai no centroide do Brasil) — tratar 0 e null como "sem coordenada".
+  const lat = e.latitude ?? 0;
+  const lng = e.longitude ?? 0;
+  const hasCoords = Math.abs(lat) > 0.0001 && Math.abs(lng) > 0.0001;
 
   // Build contact list: up to 2 responsáveis from the property, fallback to empresa contacts
   type ContactInfo = { nome: string; phone: string };
@@ -321,120 +490,120 @@ export default function EmpreendimentoDetail() {
   }
   const contacts = buildContacts();
 
-  function handleMap() {
-    if (!e.latitude || !e.longitude) return;
-    const label = encodeURIComponent(e.nome_empreendimento);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${e.latitude},${e.longitude}`,
-      android: `geo:${e.latitude},${e.longitude}?q=${e.latitude},${e.longitude}(${label})`,
-      default: `https://www.google.com/maps?q=${e.latitude},${e.longitude}`,
-    });
-    Linking.openURL(url);
-  }
-
-  const address = [e.endereco, e.numero, e.bairro ?? e.bairro_comercial, e.cidade, e.uf]
+  const bairroNome = e.bairro_comercial || e.bairro;
+  const cepFmt = e.cep
+    ? e.cep.replace(/\D/g, '').replace(/^(\d{5})(\d{3})$/, '$1-$2')
+    : '';
+  const cidadeUf = [e.cidade, e.uf].filter(Boolean).join('/');
+  const address = [
+    [e.endereco, e.numero].filter(Boolean).join(', '),
+    bairroNome,
+    cidadeUf,
+    cepFmt,
+  ]
     .filter(Boolean)
     .join(', ');
 
-  const infoCards: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string }[] = [
+  // Key facts — airy, essentials only, built directly from data (omit absent fields).
+  const facts: Fact[] = ([
     e.unidades_quartos && formatQuartosRange(e.unidades_quartos)
-      ? { icon: 'bed-outline', label: 'Quartos', value: `${formatQuartosRange(e.unidades_quartos)} quartos` }
+      ? { icon: 'bed-outline', value: formatQuartosRange(e.unidades_quartos)!, label: 'Quartos' }
       : null,
     e.unidades_area && formatAreaRange(e.unidades_area)
-      ? { icon: 'expand-outline', label: 'Área', value: formatAreaRange(e.unidades_area)! }
+      ? { icon: 'resize-outline', value: formatAreaRange(e.unidades_area)!, label: 'Área' }
       : null,
     e.unidades_vagas && formatQuartosRange(e.unidades_vagas)
-      ? { icon: 'car-outline', label: 'Vagas', value: `${formatQuartosRange(e.unidades_vagas)} vaga(s)` }
+      ? { icon: 'car-outline', value: formatQuartosRange(e.unidades_vagas)!, label: 'Vagas' }
       : null,
     e.unidades_banheiros && formatQuartosRange(e.unidades_banheiros)
-      ? { icon: 'water-outline', label: 'Banheiros', value: `${formatQuartosRange(e.unidades_banheiros)} banheiro(s)` }
-      : null,
-    e.unidades_disponiveis != null
-      ? { icon: 'home-outline', label: 'Disponíveis', value: `${e.unidades_disponiveis} un.` }
-      : null,
-    e.quant_unidades != null
-      ? { icon: 'grid-outline', label: 'Total unidades', value: `${e.quant_unidades} un.` }
-      : null,
-    e.quant_andares
-      ? { icon: 'layers-outline', label: 'Andares', value: `${e.quant_andares} andares` }
-      : null,
-    e.quant_elevadores
-      ? { icon: 'arrow-up-outline', label: 'Elevadores', value: String(e.quant_elevadores) }
+      ? { icon: 'water-outline', value: formatQuartosRange(e.unidades_banheiros)!, label: 'Banheiros' }
       : null,
     e.final_construcao
-      ? { icon: 'calendar-outline', label: 'Previsão de entrega', value: formatDate(e.final_construcao) ?? e.final_construcao }
+      ? { icon: 'calendar-outline', value: formatDate(e.final_construcao) ?? e.final_construcao, label: 'Entrega' }
       : null,
-    e.valor_condominio
-      ? { icon: 'home-outline', label: 'Condomínio', value: formatCurrency(e.valor_condominio) }
+    e.unidades_disponiveis != null
+      ? { icon: 'home-outline', value: `${e.unidades_disponiveis}`, label: 'Disponíveis' }
       : null,
-    e.taxa_enxoval
-      ? { icon: 'cash-outline', label: 'Taxa de enxoval', value: formatCurrency(e.taxa_enxoval) }
-      : null,
-    e.finalidade
-      ? { icon: 'business-outline', label: 'Finalidade', value: e.finalidade }
-      : null,
+  ].filter(Boolean)) as Fact[];
+
+  const factRows: Fact[][] = [];
+  for (let i = 0; i < facts.length; i += 3) factRows.push(facts.slice(i, i + 3));
+
+  // Ficha técnica — mesmos campos/rótulos da tela pública do PWA (menos comissão,
+  // que a API de detalhe não retorna). Usa só campos presentes; nada deduzido.
+  const areaTerreno =
+    e.area_terreno != null && e.area_terreno > 1
+      ? `${e.area_terreno.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`
+      : null;
+  const condominio =
+    e.valor_condominio != null && e.valor_condominio > 1 ? formatCurrency(e.valor_condominio) : null;
+  const parceriasStr = e.parcerias?.length
+    ? e.parcerias
+        .map((p) => p.empresa.nome_mascara ?? p.empresa.nome_fantasia ?? p.empresa.razao_social ?? '')
+        .filter(Boolean)
+        .join(', ')
+    : null;
+
+  const fichaTecnica: { icon: IconName; label: string; value: string }[] = ([
     e.nome_construtora
-      ? { icon: 'construct-outline', label: 'Construtora', value: e.nome_construtora }
+      ? { icon: 'construct-outline' as IconName, label: 'Construtora', value: e.nome_construtora }
       : null,
     e.nome_projetista
-      ? { icon: 'pencil-outline', label: 'Projetista', value: e.nome_projetista }
+      ? { icon: 'brush-outline' as IconName, label: 'Projetista', value: e.nome_projetista }
       : null,
-    e.previsao_na_planta
-      ? { icon: 'calendar-outline', label: 'Prev. na planta', value: formatDate(e.previsao_na_planta) ?? e.previsao_na_planta }
+    parceriasStr
+      ? { icon: 'people-outline' as IconName, label: 'Parceria(s)', value: parceriasStr }
+      : null,
+    areaTerreno
+      ? { icon: 'map-outline' as IconName, label: 'Área do Terreno', value: areaTerreno }
+      : null,
+    condominio
+      ? { icon: 'cash-outline' as IconName, label: 'Condomínio', value: condominio }
+      : null,
+    e.taxa_enxoval
+      ? { icon: 'cart-outline' as IconName, label: 'Taxa de Enxoval', value: formatCurrency(e.taxa_enxoval) }
       : null,
     e.unidades_por_andar
-      ? { icon: 'layers-outline', label: 'Un. por andar', value: `${e.unidades_por_andar} un.` }
+      ? { icon: 'apps-outline' as IconName, label: 'Unidades por Andar', value: `${e.unidades_por_andar}` }
       : null,
-    e.area_terreno
-      ? { icon: 'map-outline', label: 'Área do terreno', value: `${Math.trunc(e.area_terreno).toLocaleString('pt-BR')}m²` }
+    e.quant_andares
+      ? { icon: 'business-outline' as IconName, label: 'Número de Andares', value: `${e.quant_andares}` }
+      : null,
+    e.quant_unidades != null
+      ? { icon: 'grid-outline' as IconName, label: 'Número de Unidades', value: `${e.quant_unidades}` }
+      : null,
+    e.quant_elevadores
+      ? { icon: 'swap-vertical-outline' as IconName, label: 'Elevadores', value: `${e.quant_elevadores}` }
       : null,
     e.instalacao_para_ar
-      ? { icon: 'thermometer-outline', label: 'Ar condicionado', value: e.instalacao_para_ar }
+      ? { icon: 'snow-outline' as IconName, label: 'Ar Condicionado', value: e.instalacao_para_ar }
       : null,
     e.aquecimento_chuveiro
-      ? { icon: 'flame-outline', label: 'Aquecimento', value: e.aquecimento_chuveiro }
+      ? { icon: 'thermometer-outline' as IconName, label: 'Aquecimento Chuveiro', value: e.aquecimento_chuveiro }
       : null,
     e.medidor_agua_ind != null
-      ? { icon: 'water-outline', label: 'Med. água ind.', value: e.medidor_agua_ind ? 'Sim' : 'Não' }
+      ? { icon: 'water-outline' as IconName, label: 'Medidor de Água', value: e.medidor_agua_ind ? 'Sim' : 'Não' }
       : null,
     e.medidor_gas_ind != null
-      ? { icon: 'flame-outline', label: 'Med. gás ind.', value: e.medidor_gas_ind ? 'Sim' : 'Não' }
+      ? { icon: 'flame-outline' as IconName, label: 'Medidor de Gás', value: e.medidor_gas_ind ? 'Sim' : 'Não' }
       : null,
-    e.parcerias && e.parcerias.length > 0
-      ? {
-          icon: 'people-outline' as React.ComponentProps<typeof Ionicons>['name'],
-          label: 'Parceria(s)',
-          value: e.parcerias.map((p) => p.empresa.nome_mascara ?? p.empresa.nome_fantasia ?? p.empresa.razao_social ?? '').filter(Boolean).join(', '),
-        }
-      : null,
-  ].filter(Boolean) as typeof infoCards;
-
-  const KEY_LABELS = new Set(['Quartos', 'Área', 'Vagas', 'Banheiros']);
-  const keyInfoCards = infoCards.filter((c) => KEY_LABELS.has(c.label));
-  const restInfoCards = infoCards.filter((c) => !KEY_LABELS.has(c.label));
+  ].filter(Boolean)) as { icon: IconName; label: string; value: string }[];
 
   const documentos = getDocumentos(e);
-
   const unitCount = e.unidades?.length ?? 0;
-  const visibleTabs = ALL_TABS.filter((t) => {
-    if (t.key === 'photos') return photos.length > 0;
-    if (t.key === 'plantas') return plantas.length > 0;
-    if (t.key === 'tabela') return unitCount > 0;
-    return true;
-  });
-  function tabLabel(tab: (typeof ALL_TABS)[number]): string {
-    if (tab.key === 'photos') return `Fotos (${photos.length})`;
-    if (tab.key === 'plantas') return `Plantas (${plantas.length})`;
-    if (tab.key === 'tabela') return `Tabela (${unitCount})`;
-    return tab.label;
-  }
+  const hasParcelamentos = (e.parcelamentos?.length ?? 0) > 0;
+  const hasHeroCarousel = photos.length > 0;
 
   return (
     <View style={styles.root}>
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        contentContainerStyle={{
+          paddingBottom: isPreLancamento ? 96 + insets.bottom : Spacing.xxxl + insets.bottom,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -444,93 +613,130 @@ export default function EmpreendimentoDetail() {
           />
         }
       >
-        {/* ── Hero image ── */}
+        {/* ── Immersive hero gallery ── */}
         <View style={styles.hero}>
-          <TouchableOpacity
-            activeOpacity={0.95}
-            onPress={() => photos.length > 0 ? openLightbox(0) : undefined}
-            style={StyleSheet.absoluteFill}
-          >
-            {mainImage ? (
-              <Image
-                source={mainImage}
-                style={styles.heroImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-              />
-            ) : (
-              <View style={[styles.heroImage, styles.heroPlaceholder]}>
-                <Ionicons name="home-outline" size={60} color="#CBD5E1" />
-              </View>
-            )}
-          </TouchableOpacity>
+          <Animated.View style={[styles.heroMedia, heroParallaxStyle]}>
+          {hasHeroCarousel ? (
+            <FlatList
+              ref={heroRef}
+              horizontal
+              pagingEnabled
+              data={photos}
+              keyExtractor={(p) => p.id}
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(ev) => {
+                setPhotoIndex(Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH));
+              }}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  activeOpacity={0.97}
+                  onPress={() => openLightbox(index)}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={`Ampliar foto ${index + 1} de ${photos.length}`}
+                >
+                  <Image
+                    source={item.link}
+                    style={styles.heroImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={200}
+                  />
+                </TouchableOpacity>
+              )}
+            />
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.97}
+              onPress={() => (mainImage ? openLightbox(0) : undefined)}
+              style={StyleSheet.absoluteFill}
+              accessibilityRole={mainImage ? 'imagebutton' : 'image'}
+              accessibilityLabel="Foto do empreendimento"
+            >
+              {mainImage ? (
+                <Image source={mainImage} style={styles.heroImage} contentFit="cover" cachePolicy="memory-disk" />
+              ) : (
+                <View style={[styles.heroImage, styles.heroPlaceholder]}>
+                  <Ionicons name="home-outline" size={60} color={Palette.textDisabled} />
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+          </Animated.View>
+
+          {/* Scrims (over-image only) */}
           <LinearGradient
-            colors={['rgba(0,0,0,0.35)', 'transparent', 'rgba(0,0,0,0.6)']}
-            style={StyleSheet.absoluteFill}
+            colors={['rgba(0,0,0,0.42)', 'rgba(0,0,0,0)']}
+            locations={[0, 0.5]}
+            style={styles.heroTopScrim}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
+            locations={[0.35, 1]}
+            style={styles.heroBottomScrim}
+            pointerEvents="none"
           />
 
-          {/* Back button */}
-          <TouchableOpacity
-            style={[styles.backBtn, { top: insets.top + 8 }]}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={20} color="#fff" />
-          </TouchableOpacity>
-
-          {/* Share button */}
-          <TouchableOpacity
-            style={[styles.shareBtn, { top: insets.top + 8 }]}
-            onPress={() => handleShare(e.nome_empreendimento, address, e.valor)}
-          >
-            <Ionicons name="share-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-
-          {/* Hero footer: status badge (1 selo prioritário) + photo count */}
-          <View style={styles.heroFooter}>
-            <View style={styles.heroBadgesLeft}>
-              {(e.fracao_vendida ?? 0) >= 1 ? (
-                <View style={[styles.heroPill, { backgroundColor: Palette.textSecondary }]}>
-                  <Text style={styles.heroPillText}>100% Vendido</Text>
-                </View>
-              ) : (
-                e.status && <StatusBadge status={e.status} inverted />
-              )}
+          {/* Floating top bar */}
+          <View style={[styles.topBar, { top: insets.top + 8 }]}>
+            <TouchableOpacity
+              style={styles.circleBtn}
+              onPress={() => router.back()}
+              hitSlop={HIT_SLOP}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+            >
+              <Ionicons name="chevron-back" size={22} color={Palette.white} />
+            </TouchableOpacity>
+            <View style={styles.topBarRight}>
+              <FavoriteButton id={e.id} size={20} variant="overlay" />
+              <TouchableOpacity
+                style={styles.circleBtn}
+                onPress={() => handleShare(e.nome_empreendimento, address, e.valor)}
+                hitSlop={HIT_SLOP}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Compartilhar empreendimento"
+              >
+                <Ionicons name="share-outline" size={20} color={Palette.white} />
+              </TouchableOpacity>
             </View>
-            {photos.length > 1 && (
-              <View style={styles.photoPill}>
-                <Ionicons name="images-outline" size={13} color="#fff" />
-                <Text style={styles.photoPillText}>{photos.length} fotos</Text>
+          </View>
+
+          {/* Bottom-left: single status pill */}
+          <View style={styles.heroStatus}>
+            {(e.fracao_vendida ?? 0) >= 1 ? (
+              <View style={styles.soldPill}>
+                <Ionicons name="checkmark-circle" size={13} color={Palette.white} />
+                <Text style={styles.soldPillText}>100% Vendido</Text>
               </View>
+            ) : (
+              e.status && <StatusBadge status={e.status} inverted />
             )}
           </View>
+
+          {/* Page dots + counter */}
+          {photos.length > 1 && (
+            <>
+              {photos.length <= 8 && (
+                <View style={styles.dots}>
+                  {photos.map((p, i) => (
+                    <View key={p.id} style={[styles.dot, i === photoIndex && styles.dotActive]} />
+                  ))}
+                </View>
+              )}
+              <View style={styles.counterPill}>
+                <Text style={styles.counterPillText}>{photoIndex + 1}/{photos.length}</Text>
+              </View>
+            </>
+          )}
         </View>
 
-        {/* ── Sticky Tabs (horizontal scroll for 4 tabs) ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabBar}
-          contentContainerStyle={styles.tabBarContent}
-        >
-          {visibleTabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                {tabLabel(tab)}
-              </Text>
-              {activeTab === tab.key && <View style={styles.tabIndicator} />}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* ── Content ── */}
+        {/* ── Body (single elegant scroll) ── */}
         <View style={styles.content}>
-          {/* Title block (always visible) */}
-          <View style={styles.titleBlock}>
+          {/* Title block */}
+          <Reveal delay={50} disabled={reduceMotion} style={styles.titleBlock}>
             <View style={styles.companyRow}>
               {logoUrl && (
                 <Image
@@ -540,459 +746,429 @@ export default function EmpreendimentoDetail() {
                   cachePolicy="memory-disk"
                 />
               )}
-              <Text style={styles.companyName}>{empresaNome}</Text>
+              <Text style={styles.companyName} numberOfLines={1}>{empresaNome}</Text>
             </View>
             <Text style={styles.name}>{e.nome_empreendimento}</Text>
             {address ? (
               <View style={styles.addressRow}>
-                <Ionicons name="location-sharp" size={14} color={Palette.primary} />
+                <Ionicons name="location-outline" size={15} color={Palette.textTertiary} />
                 <Text style={styles.address}>{address}</Text>
               </View>
             ) : null}
-            {e.empresa?.link_portal ? (
-              <TouchableOpacity
-                style={styles.portalLink}
-                onPress={() => Linking.openURL(e.empresa.link_portal!)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="globe-outline" size={13} color={Palette.primary} />
-                <Text style={styles.portalLinkText}>Ver no site da construtora</Text>
-                <Ionicons name="open-outline" size={11} color={Palette.primary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
+          </Reveal>
 
-          {/* ── TAB: Visão Geral ── */}
-          {activeTab === 'overview' && (
-            <View style={styles.tab_content}>
-              {/* Photo strip — first 5 photos visible immediately */}
-              {photos.length > 1 && (
-                <View style={styles.photoStripWrapper}>
-                  <TouchableOpacity
-                    style={styles.photoStripHeader}
-                    onPress={() => setActiveTab('photos')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.photoStripTitle}>Fotos ({photos.length})</Text>
-                    <Text style={styles.photoStripSeeAll}>Ver galeria →</Text>
-                  </TouchableOpacity>
-                  <View style={styles.photoStrip}>
-                  {photos.slice(0, 5).map((p, idx) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[
-                        styles.photoStripItem,
-                        idx === 4 && photos.length > 5 && styles.photoStripLast,
-                      ]}
-                      onPress={() => openLightbox(idx)}
-                      activeOpacity={0.85}
+          {/* Key facts — airy grid with hairline dividers */}
+          {facts.length > 0 && (
+            <Reveal delay={110} disabled={reduceMotion} style={styles.factsBlock}>
+              {factRows.map((row, ri) => (
+                <View key={ri} style={[styles.factsRow, ri > 0 && styles.factsRowDivider]}>
+                  {row.map((f, ci) => (
+                    <View
+                      key={f.label}
+                      style={[styles.factCell, ci > 0 && styles.factCellDivider]}
+                      accessible
+                      accessibilityLabel={`${f.label}: ${f.value}`}
                     >
+                      <Ionicons name={f.icon} size={19} color={Palette.primary} />
+                      <Text style={styles.factValue} numberOfLines={1}>{f.value}</Text>
+                      <Text style={styles.factLabel} numberOfLines={1}>{f.label}</Text>
+                    </View>
+                  ))}
+                  {row.length < 3 &&
+                    Array.from({ length: 3 - row.length }).map((_, k) => (
+                      <View key={`pad-${k}`} style={styles.factCell} />
+                    ))}
+                </View>
+              ))}
+            </Reveal>
+          )}
+
+          {/* Price — prominent, only when a real value exists (never a placeholder) */}
+          {e.valor && (
+            <Reveal delay={160} disabled={reduceMotion} style={styles.priceBlock}>
+              <View style={styles.priceEyebrowRow}>
+                <Text style={styles.priceEyebrow}>A partir de</Text>
+                {e.unidades_promocao && (
+                  <View style={styles.promoTag}>
+                    <Ionicons name="pricetag" size={10} color={Palette.white} />
+                    <Text style={styles.promoTagText}>Promoção</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.priceValue}>{formatCurrency(e.valor)}</Text>
+              {e.fracao_vendida != null && e.fracao_vendida > 0 && (
+                <View style={styles.progressWrapper}>
+                  <ProgressBar value={e.fracao_vendida} />
+                </View>
+              )}
+            </Reveal>
+          )}
+
+          {/* Primary contact — WhatsApp */}
+          {contacts.length > 0 && (
+            <Reveal delay={210} disabled={reduceMotion}>
+              <ContactCTA
+                phone={contacts[0].phone}
+                contactName={contacts[0].nome || undefined}
+                empreendimentoName={e.nome_empreendimento}
+                isAuthenticated={isAuthenticated}
+              />
+            </Reveal>
+          )}
+
+          {/* Gerar Hotsite — ferramenta do corretor (como no PWA) */}
+          {isAuthenticated && (
+            <Reveal delay={230} disabled={reduceMotion}>
+              <PressableScale
+                style={styles.hotsiteBtn}
+                onPress={() => {
+                  tapMedium();
+                  setHotsiteVisible(true);
+                }}
+                reduceMotion={reduceMotion}
+                accessibilityRole="button"
+                accessibilityLabel="Gerar hotsite para compartilhar com um cliente"
+              >
+                <View style={styles.hotsiteIcon}>
+                  <Ionicons name="paper-plane" size={16} color={Palette.white} />
+                </View>
+                <View style={styles.hotsiteTexts}>
+                  <Text style={styles.hotsiteTitle}>Gerar Hotsite</Text>
+                  <Text style={styles.hotsiteSub} numberOfLines={1}>
+                    Página exclusiva com sua foto e contato
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={17} color={Palette.accent} />
+              </PressableScale>
+            </Reveal>
+          )}
+
+          {/* Andamento da obra */}
+          {e.status && (
+            <Reveal delay={240} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Andamento da obra" />
+              <View style={styles.stepperCard}>
+                <StatusStepper
+                  status={e.status}
+                  dataLancamento={e.data_lancamento}
+                  finalConstrucao={e.final_construcao}
+                  finalidade={e.finalidade}
+                />
+              </View>
+            </Reveal>
+          )}
+
+          {/* Descrição */}
+          {e.descricao ? (() => {
+            const raw = e.descricao.replace(/<[^>]+>/g, '').trim();
+            const LIMIT = 220;
+            const isLong = raw.length > LIMIT;
+            const shown = !isLong || descExpanded ? raw : raw.slice(0, LIMIT) + '...';
+            return (
+              <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+                <SectionHeader title="Descrição" />
+                <Text style={styles.description}>{shown}</Text>
+                {isLong && (
+                  <TouchableOpacity
+                    style={styles.inlineToggle}
+                    onPress={() => setDescExpanded((v) => !v)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: descExpanded }}
+                    accessibilityLabel={descExpanded ? 'Ver menos da descrição' : 'Ver descrição completa'}
+                  >
+                    <Text style={styles.inlineToggleText}>{descExpanded ? 'Ver menos' : 'Ver mais'}</Text>
+                    <Ionicons name={descExpanded ? 'chevron-up' : 'chevron-down'} size={15} color={Palette.primary} />
+                  </TouchableOpacity>
+                )}
+              </Reveal>
+            );
+          })() : null}
+
+          {/* O empreendimento oferece — amenidades agrupadas por categoria (como no PWA) */}
+          {e.comodidade_empreendimentos && e.comodidade_empreendimentos.length > 0 && (() => {
+            const items = e.comodidade_empreendimentos;
+            const known = new Set(AMENITY_GROUPS.map((g) => g.key));
+            const groups: { key: string; label: string; icon: IconName; tags: string[] }[] =
+              AMENITY_GROUPS.map((g) => ({
+                ...g,
+                tags: items
+                  .filter((c) => c.comodidade.categoria === g.key)
+                  .map((c) => c.comodidade.descricao),
+              })).filter((g) => g.tags.length > 0);
+            const outros = items
+              .filter((c) => !known.has(c.comodidade.categoria))
+              .map((c) => c.comodidade.descricao);
+            if (outros.length > 0) {
+              groups.push({ key: 'Outros', label: 'Outros', icon: 'sparkles-outline', tags: outros });
+            }
+            return (
+              <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+                <SectionHeader title="O empreendimento oferece" count={items.length} />
+                <View style={styles.amenityGroups}>
+                  {groups.map((g) => (
+                    <View key={g.key} style={styles.amenityGroup}>
+                      <View style={styles.amenityGroupHeader}>
+                        <Ionicons name={g.icon} size={18} color={Palette.primary} />
+                        <Text style={styles.amenityGroupTitle}>{g.label}</Text>
+                      </View>
+                      <View style={styles.amenityChips}>
+                        {g.tags.map((t) => (
+                          <View key={t} style={styles.amenityChip}>
+                            <Text style={styles.amenityChipText}>{t}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </Reveal>
+            );
+          })()}
+
+          {/* Contato — phone (login-gated) */}
+          {contacts.length > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Contato" />
+              <View style={styles.contactList}>
+                {contacts.map((c, idx) => {
+                  const fmtPhone = c.phone.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 ($2) $3-$4');
+                  return (
+                    <View key={idx} style={styles.contactCard}>
+                      <View style={styles.contactAvatar}>
+                        <Ionicons name="person" size={20} color={Palette.primary} />
+                      </View>
+                      {isAuthenticated ? (
+                        <View style={styles.contactInfo}>
+                          {c.nome ? <Text style={styles.contactName} numberOfLines={1}>{c.nome}</Text> : null}
+                          <Text style={styles.contactPhone}>{fmtPhone}</Text>
+                        </View>
+                      ) : (
+                        <LoginPrompt message="Entre para ver o telefone" compact />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </Reveal>
+          )}
+
+          {/* Localização */}
+          {hasCoords && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Localização" />
+              <MapPreview
+                latitude={lat}
+                longitude={lng}
+                title={e.nome_empreendimento}
+                address={address || undefined}
+              />
+            </Reveal>
+          )}
+
+          {/* Ficha Técnica — seção aberta e rotulada (como no PWA) */}
+          {fichaTecnica.length > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Ficha Técnica" />
+              <View style={styles.infoGrid}>
+                {fichaTecnica.map((card) => (
+                  <InfoCard key={card.label} {...card} />
+                ))}
+              </View>
+            </Reveal>
+          )}
+
+          {/* Plantas */}
+          {plantas.length > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Plantas" count={plantas.length} />
+              <View style={styles.plantasGrid}>
+                {plantas.map((p, idx) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.plantaItem}
+                    onPress={() => openPlantasLightbox(idx)}
+                    activeOpacity={0.88}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={`Ampliar ${p.descricao || `planta ${idx + 1}`}`}
+                  >
+                    <View style={styles.plantaImageWrap}>
                       <Image
                         source={p.link}
-                        style={styles.photoStripImg}
-                        contentFit="cover"
+                        style={styles.plantaImage}
+                        contentFit="contain"
                         cachePolicy="memory-disk"
-                        transition={200}
                       />
-                      {idx === 4 && photos.length > 5 && (
-                        <View style={styles.photoStripMore}>
-                          <Text style={styles.photoStripMoreText}>+{photos.length - 5}</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Price highlight */}
-              {e.valor && (
-                <View style={styles.priceCard}>
-                  <View style={styles.priceLabelRow}>
-                    <Text style={styles.priceLabel}>A partir de</Text>
-                    {e.unidades_promocao && (
-                      <View style={styles.promoTag}>
-                        <Ionicons name="pricetag" size={10} color={Palette.white} />
-                        <Text style={styles.promoTagText}>Promoção</Text>
+                      <View style={styles.plantaExpandHint}>
+                        <Ionicons name="expand-outline" size={13} color={Palette.white} />
                       </View>
-                    )}
-                  </View>
-                  <Text style={styles.priceValue}>{formatCurrency(e.valor)}</Text>
-                  {e.fracao_vendida != null && e.fracao_vendida > 0 && (
-                    <View style={styles.progressWrapper}>
-                      <ProgressBar value={e.fracao_vendida} />
                     </View>
-                  )}
-                </View>
-              )}
-
-              {/* Status Stepper */}
-              {e.status && (
-                <View style={styles.stepperSection}>
-                  <Text style={styles.sectionTitle}>Andamento da obra</Text>
-                  <View style={styles.stepperCard}>
-                    <StatusStepper status={e.status} />
-                  </View>
-                </View>
-              )}
-
-              {/* Info cards: fatos-chave sempre visíveis + resto atrás de "Ver mais detalhes" */}
-              {keyInfoCards.length > 0 && (
-                <View style={styles.infoGrid}>
-                  {keyInfoCards.map((card) => (
-                    <InfoCard key={card.label} {...card} />
-                  ))}
-                </View>
-              )}
-              {restInfoCards.length > 0 && (
-                <View style={styles.section}>
-                  <TouchableOpacity
-                    style={styles.detailsToggle}
-                    onPress={() => setDetailsExpanded((v) => !v)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.detailsToggleText}>
-                      {detailsExpanded ? 'Ver menos detalhes' : `Ver mais detalhes (${restInfoCards.length})`}
+                    <Text style={styles.plantaLabel} numberOfLines={2}>
+                      {p.descricao || `Planta ${idx + 1}`}
                     </Text>
-                    <Ionicons
-                      name={detailsExpanded ? 'chevron-up' : 'chevron-down'}
-                      size={14}
-                      color={Palette.primary}
-                    />
                   </TouchableOpacity>
-                  {detailsExpanded && (
-                    <View style={styles.infoGrid}>
-                      {restInfoCards.map((card) => (
-                        <InfoCard key={card.label} {...card} />
-                      ))}
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Description */}
-              {e.descricao ? (() => {
-                const raw = e.descricao.replace(/<[^>]+>/g, '').trim();
-                const LIMIT = 200;
-                const isLong = raw.length > LIMIT;
-                const shown = !isLong || descExpanded ? raw : raw.slice(0, LIMIT) + '...';
-                return (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Descrição</Text>
-                    <Text style={styles.description}>{shown}</Text>
-                    {isLong && (
-                      <TouchableOpacity
-                        style={styles.descToggle}
-                        onPress={() => setDescExpanded((v) => !v)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.descToggleText}>
-                          {descExpanded ? 'Ver menos' : 'Ver mais'}
-                        </Text>
-                        <Ionicons
-                          name={descExpanded ? 'chevron-up' : 'chevron-down'}
-                          size={14}
-                          color={Palette.primary}
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })() : null}
-
-              {/* Comodidades — lista única, limitada por padrão */}
-              {e.comodidade_empreendimentos && e.comodidade_empreendimentos.length > 0 && (() => {
-                const all = e.comodidade_empreendimentos.map((c) => c.comodidade.descricao);
-                const LIMIT = 8;
-                const visible = comodidadesExpanded ? all : all.slice(0, LIMIT);
-                const hidden = all.length - visible.length;
-                return (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Comodidades ({all.length})</Text>
-                    <View style={styles.comodidadeChips}>
-                      {visible.map((item) => (
-                        <View key={item} style={styles.comodidadeChip}>
-                          <Text style={styles.comodidadeChipText}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    {hidden > 0 && (
-                      <TouchableOpacity
-                        style={styles.descToggle}
-                        onPress={() => setComodidadesExpanded(true)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.descToggleText}>Ver todas (+{hidden})</Text>
-                        <Ionicons name="chevron-down" size={14} color={Palette.primary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })()}
-
-              {/* Contact */}
-              {contacts.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Contato</Text>
-                  <View style={styles.contactList}>
-                    {contacts.map((c, idx) => {
-                      const fmtPhone = c.phone.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 ($2) $3-$4');
-                      return (
-                        <View key={idx} style={styles.contactCard}>
-                          <View style={styles.contactAvatar}>
-                            <Ionicons name="person" size={20} color={Palette.primary} />
-                          </View>
-                          {isAuthenticated ? (
-                            <View style={styles.contactInfo}>
-                              {c.nome ? <Text style={styles.contactName}>{c.nome}</Text> : null}
-                              <Text style={styles.contactPhone}>{fmtPhone}</Text>
-                            </View>
-                          ) : (
-                            <LoginPrompt message="Entre para ver o telefone" compact />
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              {/* Map */}
-              {hasCoords && (
-                <TouchableOpacity
-                  style={styles.mapBtn}
-                  onPress={handleMap}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.mapIconWrap}>
-                    <Ionicons name="map" size={20} color={Palette.primary} />
-                  </View>
-                  <View style={styles.mapBtnInfo}>
-                    <Text style={styles.mapBtnTitle}>Ver localização</Text>
-                    {address ? (
-                      <Text style={styles.mapBtnAddr} numberOfLines={1}>{address}</Text>
-                    ) : null}
-                  </View>
-                  <Ionicons name="open-outline" size={16} color={Palette.textTertiary} />
-                </TouchableOpacity>
-              )}
-
-              {/* Documents */}
-              {documentos.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Documentos</Text>
-                  <View style={styles.docsWrapper}>
-                    {documentos.map((doc) => (
-                      <TouchableOpacity
-                        key={doc.id}
-                        style={styles.docRow}
-                        onPress={() => Linking.openURL(doc.link!)}
-                        activeOpacity={0.8}
-                      >
-                        <View style={styles.docIconWrap}>
-                          <Ionicons name="document-text-outline" size={18} color={Palette.primary} />
-                        </View>
-                        <Text style={styles.docLabel} numberOfLines={1}>
-                          {doc.descricao || getDocumentoLabel(doc.categoria)}
-                        </Text>
-                        <View style={styles.docOpenBtn}>
-                          <Ionicons name="open-outline" size={14} color={Palette.primary} />
-                          <Text style={styles.docOpenText}>Abrir</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Videos */}
-              {e.videos && e.videos.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Vídeos ({e.videos.length})</Text>
-                  <View style={styles.videoList}>
-                    {e.videos.map((v, idx) => {
-                      const thumb = getYoutubeThumbnail(v.url_youtube);
-                      const isYt = !!v.url_youtube;
-                      return (
-                        <TouchableOpacity
-                          key={v.id}
-                          style={styles.videoCard}
-                          onPress={() => v.url_youtube && Linking.openURL(v.url_youtube)}
-                          activeOpacity={0.88}
-                        >
-                          <View style={styles.videoThumbWrapper}>
-                            {thumb ? (
-                              <Image source={thumb} style={styles.videoThumb} contentFit="cover" />
-                            ) : (
-                              <View style={[styles.videoThumb, styles.videoThumbPlaceholder]}>
-                                <Ionicons name="videocam-outline" size={40} color={Palette.textDisabled} />
-                              </View>
-                            )}
-                            <LinearGradient
-                              colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.55)']}
-                              style={StyleSheet.absoluteFill}
-                            />
-                            <View style={styles.videoPlayCenter}>
-                              <View style={styles.videoPlayBtn}>
-                                <Ionicons name="play" size={22} color="#fff" />
-                              </View>
-                            </View>
-                            {isYt && (
-                              <View style={styles.ytBadge}>
-                                <Ionicons name="logo-youtube" size={14} color="#FF0000" />
-                                <Text style={styles.ytBadgeText}>YouTube</Text>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.videoMeta}>
-                            <View style={styles.videoMetaLeft}>
-                              <Ionicons name="play-circle-outline" size={16} color={Palette.primary} />
-                              <Text style={styles.videoMetaTitle} numberOfLines={1}>
-                                {isYt ? `Vídeo ${idx + 1} — YouTube` : `Vídeo ${idx + 1}`}
-                              </Text>
-                            </View>
-                            <View style={styles.videoAssistirBtn}>
-                              <Text style={styles.videoAssistirText}>Assistir</Text>
-                              <Ionicons name="open-outline" size={13} color={Palette.primary} />
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-            </View>
+                ))}
+              </View>
+            </Reveal>
           )}
 
-          {/* ── TAB: Fotos ── */}
-          {activeTab === 'photos' && (
-            <View style={styles.tab_content}>
-              {photos.length === 0 ? (
-                <EmptyState icon="images-outline" message="Nenhuma foto disponível" />
-              ) : (
-                <>
-                  {/* Swipeable main photos */}
-                  <View style={styles.mainPhotoWrapper}>
-                    <FlatList
-                      ref={photosRef}
-                      horizontal
-                      pagingEnabled
-                      data={photos}
-                      keyExtractor={(p) => p.id}
-                      showsHorizontalScrollIndicator={false}
-                      onMomentumScrollEnd={(e) => {
-                        const idx = Math.round(
-                          e.nativeEvent.contentOffset.x / SCREEN_WIDTH
-                        );
-                        setPhotoIndex(idx);
-                      }}
-                      renderItem={({ item, index }) => (
-                        <TouchableOpacity
-                          activeOpacity={0.95}
-                          onPress={() => openLightbox(index)}
-                        >
-                          <Image
-                            source={item.link}
-                            style={styles.mainPhoto}
-                            contentFit="cover"
-                            transition={200}
-                            cachePolicy="memory-disk"
-                          />
-                        </TouchableOpacity>
-                      )}
-                    />
-                    <View style={styles.photoCounter}>
-                      <Text style={styles.photoCounterText}>
-                        {photoIndex + 1} / {photos.length}
-                      </Text>
-                    </View>
-                    <View style={styles.expandHint}>
-                      <Ionicons name="expand-outline" size={13} color="#fff" />
-                      <Text style={styles.expandHintText}>Toque para ampliar</Text>
-                    </View>
-                  </View>
-
-                  {/* Thumbnails */}
-                  <FlatList
-                    horizontal
-                    data={photos}
-                    keyExtractor={(p) => p.id}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.thumbList}
-                    renderItem={({ item, index }) => (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setPhotoIndex(index);
-                          photosRef.current?.scrollToIndex({ index, animated: true });
-                        }}
-                        onLongPress={() => openLightbox(index)}
-                        activeOpacity={0.8}
-                      >
-                        <Image
-                          source={item.link}
-                          style={[styles.thumb, index === photoIndex && styles.thumbActive]}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
+          {/* Vídeos */}
+          {e.videos && e.videos.length > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Vídeos" count={e.videos.length} />
+              <View style={styles.videoList}>
+                {e.videos.map((v, idx) => {
+                  const thumb = getYoutubeThumbnail(v.url_youtube);
+                  const isYt = !!v.url_youtube;
+                  return (
+                    <PressableScale
+                      key={v.id}
+                      style={styles.videoCard}
+                      onPress={() => v.url_youtube && Linking.openURL(v.url_youtube)}
+                      reduceMotion={reduceMotion}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Assistir vídeo ${idx + 1}${isYt ? ' no YouTube' : ''}`}
+                    >
+                      <View style={styles.videoThumbWrapper}>
+                        {thumb ? (
+                          <Image source={thumb} style={styles.videoThumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.videoThumb, styles.videoThumbPlaceholder]}>
+                            <Ionicons name="videocam-outline" size={40} color={Palette.textDisabled} />
+                          </View>
+                        )}
+                        <LinearGradient
+                          colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.55)']}
+                          style={StyleSheet.absoluteFill}
+                          pointerEvents="none"
                         />
-                      </TouchableOpacity>
-                    )}
+                        <View style={styles.videoPlayCenter}>
+                          <View style={styles.videoPlayBtn}>
+                            <Ionicons name="play" size={22} color={Palette.white} />
+                          </View>
+                        </View>
+                        {isYt && (
+                          <View style={styles.ytBadge}>
+                            <Ionicons name="logo-youtube" size={14} color="#FF0000" />
+                            <Text style={styles.ytBadgeText}>YouTube</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.videoMeta}>
+                        <View style={styles.videoMetaLeft}>
+                          <Ionicons name="play-circle-outline" size={16} color={Palette.primary} />
+                          <Text style={styles.videoMetaTitle} numberOfLines={1}>
+                            {isYt ? `Vídeo ${idx + 1} — YouTube` : `Vídeo ${idx + 1}`}
+                          </Text>
+                        </View>
+                        <View style={styles.videoAssistirBtn}>
+                          <Text style={styles.videoAssistirText}>Assistir</Text>
+                          <Ionicons name="open-outline" size={13} color={Palette.primary} />
+                        </View>
+                      </View>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            </Reveal>
+          )}
+
+          {/* Documentos */}
+          {documentos.length > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Documentos" count={documentos.length} />
+              <View style={styles.docsWrapper}>
+                {documentos.map((doc) => (
+                  <PressableScale
+                    key={doc.id}
+                    style={styles.docRow}
+                    onPress={() => Linking.openURL(doc.link!)}
+                    reduceMotion={reduceMotion}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Abrir documento ${doc.descricao || getDocumentoLabel(doc.categoria)}`}
+                  >
+                    <View style={styles.docIconWrap}>
+                      <Ionicons name="document-text-outline" size={18} color={Palette.primary} />
+                    </View>
+                    <Text style={styles.docLabel} numberOfLines={1}>
+                      {doc.descricao || getDocumentoLabel(doc.categoria)}
+                    </Text>
+                    <View style={styles.docOpenBtn}>
+                      <Ionicons name="open-outline" size={14} color={Palette.primary} />
+                      <Text style={styles.docOpenText}>Abrir</Text>
+                    </View>
+                  </PressableScale>
+                ))}
+              </View>
+            </Reveal>
+          )}
+
+          {/* Tabela de vendas */}
+          {unitCount > 0 && (
+            <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
+              <SectionHeader title="Tabela de vendas" count={unitCount} />
+              {isAuthenticated ? (
+                <>
+                  {hasParcelamentos && (
+                    <Text style={styles.sectionHint}>
+                      Toque em uma unidade para ver o plano de pagamento.
+                    </Text>
+                  )}
+                  <SalesTable
+                    units={e.unidades ?? []}
+                    varios_blocos={e.varios_blocos}
+                    onUnitPress={
+                      hasParcelamentos
+                        ? (unit) => {
+                            tapLight();
+                            setParcelamentoUnit(unit);
+                          }
+                        : undefined
+                    }
                   />
                 </>
-              )}
-            </View>
-          )}
-
-          {/* ── TAB: Plantas ── */}
-          {activeTab === 'plantas' && (
-            <View style={styles.tab_content}>
-              {plantas.length === 0 ? (
-                <EmptyState icon="document-outline" message="Nenhuma planta disponível" />
-              ) : (
-                <View style={styles.plantasGrid}>
-                  {plantas.map((p, idx) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={styles.plantaItem}
-                      onPress={() => openPlantasLightbox(idx)}
-                      activeOpacity={0.88}
-                    >
-                      <View style={styles.plantaImageWrap}>
-                        <Image
-                          source={p.link}
-                          style={styles.plantaImage}
-                          contentFit="contain"
-                          cachePolicy="memory-disk"
-                        />
-                        <View style={styles.plantaExpandHint}>
-                          <Ionicons name="expand-outline" size={13} color="#fff" />
-                        </View>
-                      </View>
-                      {p.descricao ? (
-                        <Text style={styles.plantaLabel} numberOfLines={2}>{p.descricao}</Text>
-                      ) : (
-                        <Text style={styles.plantaLabel}>Planta {idx + 1}</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* ── TAB: Tabela de Vendas ── */}
-          {activeTab === 'tabela' && (
-            <View style={styles.tab_content}>
-              {isAuthenticated ? (
-                <SalesTable units={e.unidades ?? []} varios_blocos={e.varios_blocos} />
               ) : (
                 <LoginPrompt message="Entre na sua conta para ver a tabela de vendas com preços e disponibilidade de cada unidade." />
               )}
-            </View>
+            </Reveal>
           )}
-
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
+
+      {/* Collapsing compact header — appears once the hero scrolls away */}
+      <Animated.View
+        style={[styles.compactHeader, { paddingTop: insets.top }, compactHeaderStyle]}
+        pointerEvents={headerActive ? 'auto' : 'none'}
+        accessibilityElementsHidden={!headerActive}
+        importantForAccessibility={headerActive ? 'auto' : 'no-hide-descendants'}
+      >
+        <View style={styles.compactRow}>
+          <TouchableOpacity
+            style={styles.compactBtn}
+            onPress={() => router.back()}
+            hitSlop={HIT_SLOP}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar"
+          >
+            <Ionicons name="chevron-back" size={22} color={Palette.text} />
+          </TouchableOpacity>
+          <Text style={styles.compactTitle} numberOfLines={1}>{e.nome_empreendimento}</Text>
+          <View style={styles.compactRight}>
+            <FavoriteButton id={e.id} size={20} variant="surface" />
+            <TouchableOpacity
+              style={styles.compactBtn}
+              onPress={() => handleShare(e.nome_empreendimento, address, e.valor)}
+              hitSlop={HIT_SLOP}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Compartilhar empreendimento"
+            >
+              <Ionicons name="share-outline" size={20} color={Palette.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
 
       {/* Full-screen photo lightbox */}
       <PhotoLightbox
@@ -1009,27 +1185,48 @@ export default function EmpreendimentoDetail() {
         onClose={() => setPlantasLightboxVisible(false)}
       />
 
-      {/* Floating CTA bar — Interesse */}
+      {/* Gerar Hotsite */}
+      <GerarHotsiteSheet
+        visible={hotsiteVisible}
+        onClose={() => setHotsiteVisible(false)}
+        empreendimentoId={e.id}
+        empreendimentoNome={e.nome_empreendimento}
+        bairro={bairroNome}
+        tipoProduto={e.tipo_produto}
+      />
+
+      {/* Plano de pagamento da unidade (tabela de parcelamentos, como no PWA) */}
+      <ParcelamentoSheet
+        visible={parcelamentoUnit != null}
+        onClose={() => setParcelamentoUnit(null)}
+        unit={parcelamentoUnit}
+        parcelamentos={e.parcelamentos ?? []}
+        empreendimentoNome={e.nome_empreendimento}
+        variosBlocos={e.varios_blocos}
+      />
+
+      {/* Sticky bottom CTA — Tenho interesse (pré-lançamento) */}
       {isPreLancamento && (
         <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.ctaContent}>
-            <TouchableOpacity
-              style={[styles.ctaBtn, styles.ctaBtnFull, interesseLoading && styles.ctaBtnDisabled]}
-              onPress={() => handleInteresse(e.id)}
-              disabled={interesseLoading}
-              activeOpacity={0.85}
-            >
-              {interesseLoading
-                ? <ActivityIndicator size="small" color="#fff" />
-                : (
-                  <>
-                    <Ionicons name="heart-outline" size={16} color="#fff" />
-                    <Text style={styles.ctaBtnText}>Tenho Interesse</Text>
-                  </>
-                )
-              }
-            </TouchableOpacity>
-          </View>
+          <PressableScale
+            style={[styles.ctaBtn, interesseLoading && styles.ctaBtnDisabled]}
+            onPress={() => handleInteresse(e.id)}
+            disabled={interesseLoading}
+            reduceMotion={reduceMotion}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: interesseLoading, busy: interesseLoading }}
+            accessibilityLabel="Tenho interesse neste empreendimento"
+          >
+            {interesseLoading
+              ? <ActivityIndicator size="small" color={Palette.white} />
+              : (
+                <>
+                  <Ionicons name="heart" size={16} color={Palette.white} />
+                  <Text style={styles.ctaBtnText}>Tenho interesse</Text>
+                </>
+              )
+            }
+          </PressableScale>
         </View>
       )}
     </View>
@@ -1046,241 +1243,249 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.bg,
   },
 
-  // Hero
+  // ── Hero ──
   hero: {
-    height: 300,
+    height: HERO_HEIGHT,
     position: 'relative',
     backgroundColor: Palette.border,
+    overflow: 'hidden',
+  },
+  heroMedia: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   heroImage: {
-    width: '100%',
-    height: '100%',
+    width: SCREEN_WIDTH,
+    height: HERO_HEIGHT,
+  },
+
+  // ── Collapsing compact header ──
+  compactHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Palette.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.borderLight,
+    zIndex: 20,
+    ...Shadow.sm,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 52,
+    paddingHorizontal: Spacing.lg,
+  },
+  compactBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.surfaceVariant,
+  },
+  compactTitle: {
+    flex: 1,
+    fontFamily: DisplayFont.bold,
+    fontSize: 16,
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  compactRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   heroPlaceholder: {
     backgroundColor: Palette.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtn: {
+  heroTopScrim: {
     position: 'absolute',
-    left: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 140,
   },
-  shareBtn: {
-    position: 'absolute',
-    right: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  photoPillText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  heroFooter: {
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  heroBadgesLeft: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-    flex: 1,
-  },
-  heroBadgesRight: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'flex-end',
-  },
-  heroPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Palette.unitPromocao,
-    borderRadius: Radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  heroPillText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-
-  // Tabs
-  tabBar: {
-    backgroundColor: Palette.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Palette.border,
-  },
-  tabBarContent: {
-    paddingHorizontal: Spacing.md,
-  },
-  tab: {
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: Spacing.md,
-    position: 'relative',
-    minWidth: 90,
-  },
-  tabActive: {},
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.textTertiary,
-  },
-  tabTextActive: {
-    color: Palette.primary,
-  },
-  tabIndicator: {
+  heroBottomScrim: {
     position: 'absolute',
     bottom: 0,
-    left: 12,
-    right: 12,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: Palette.primary,
+    left: 0,
+    right: 0,
+    height: 160,
   },
-
-  // Content
-  content: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
-    paddingBottom: 40,
+  topBar: {
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  titleBlock: { gap: 6 },
-  companyRow: {
+  topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  circleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroStatus: {
+    position: 'absolute',
+    left: Spacing.lg,
+    bottom: Spacing.lg,
+  },
+  soldPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Palette.textSecondary,
+    borderRadius: Radius.full,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  soldPillText: { fontSize: 12, fontWeight: '700', color: Palette.white },
+  dots: {
+    position: 'absolute',
+    bottom: Spacing.lg + 6,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  dotActive: {
+    width: 18,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  counterPill: {
+    position: 'absolute',
+    right: Spacing.lg,
+    bottom: Spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  counterPillText: { fontSize: 12, color: Palette.white, fontWeight: '600' },
+
+  // ── Body ──
+  content: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    gap: Spacing.xxl,
+  },
+
+  // Title
+  titleBlock: { gap: 8 },
+  companyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: {
     width: 24,
     height: 24,
-    borderRadius: 6,
-    backgroundColor: Palette.borderLight,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.surfaceVariant,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
   },
   companyName: {
+    flex: 1,
     fontSize: 12,
     fontWeight: '700',
     color: Palette.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   name: {
-    fontFamily: DisplayFont.extraBold,
-    fontSize: 24,
+    fontFamily: DisplayFont.bold,
+    fontSize: 26,
     color: Palette.text,
-    lineHeight: 30,
-    letterSpacing: -0.5,
+    lineHeight: 32,
+    letterSpacing: -0.4,
   },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  address: {
-    fontSize: 13,
-    color: Palette.textSecondary,
-    flex: 1,
-    lineHeight: 18,
-  },
-  portalLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
-    alignSelf: 'flex-start',
-  },
-  portalLinkText: {
-    fontSize: 13,
-    color: Palette.primary,
-    fontWeight: '600',
-  },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
+  address: { fontSize: 13.5, color: Palette.textSecondary, flex: 1, lineHeight: 19 },
 
-  // Tab content
-  tab_content: { gap: Spacing.lg },
-  photoStripWrapper: { gap: 10 },
-  photoStripHeader: {
+  // Key facts
+  factsBlock: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    paddingVertical: 6,
+    ...Shadow.xs,
+  },
+  factsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
   },
-  photoStripTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Palette.text,
-    letterSpacing: -0.3,
+  factsRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Palette.borderLight,
   },
-  photoStripSeeAll: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.primary,
-  },
-  photoStrip: {
-    flexDirection: 'row',
-    gap: 4,
-    height: 80,
-  },
-  photoStripItem: {
+  factCell: {
     flex: 1,
-    borderRadius: Radius.sm,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  photoStripLast: {},
-  photoStripImg: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Palette.borderLight,
-  },
-  photoStripMore: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+    minHeight: 92,
   },
-  photoStripMoreText: {
-    color: '#fff',
+  factCellDivider: {
+    borderLeftWidth: 1,
+    borderLeftColor: Palette.borderLight,
+  },
+  factValue: {
+    fontFamily: DisplayFont.bold,
     fontSize: 16,
-    fontWeight: '800',
+    color: Palette.text,
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
-  priceCard: {
-    backgroundColor: Palette.primaryLight,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
+  factLabel: {
+    fontSize: 11,
+    color: Palette.textTertiary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+
+  // Price
+  priceBlock: {
     gap: 6,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    backgroundColor: Palette.primaryLight,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Palette.primaryMid,
   },
-  priceLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  priceLabel: {
+  priceEyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  priceEyebrow: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Palette.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   promoTag: {
     flexDirection: 'row',
@@ -1288,94 +1493,82 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: Palette.unitPromocao,
     borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
-  promoTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Palette.white,
-  },
+  promoTagText: { fontSize: 10, fontWeight: '700', color: Palette.white },
   priceValue: {
     fontFamily: DisplayFont.extraBold,
-    fontSize: 28,
+    fontSize: 32,
     color: Palette.primary,
-    letterSpacing: -1,
+    letterSpacing: -1.1,
+    lineHeight: 38,
   },
-  progressWrapper: { marginTop: 4 },
+  progressWrapper: { marginTop: 8 },
 
-  infoGrid: {
+  // Sections
+  section: { gap: Spacing.md },
+  sectionHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
   },
-
-  section: { gap: 8 },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontFamily: DisplayFont.bold,
+    fontSize: 19,
     color: Palette.text,
     letterSpacing: -0.3,
   },
-  description: {
+  sectionCount: {
     fontSize: 14,
-    color: Palette.textSecondary,
-    lineHeight: 22,
+    fontWeight: '600',
+    color: Palette.textTertiary,
   },
-  descToggle: {
+  sectionHint: {
+    fontSize: 12.5,
+    color: Palette.textTertiary,
+    marginTop: -6,
+  },
+
+  // Description
+  description: { fontSize: 14.5, color: Palette.textSecondary, lineHeight: 23 },
+  inlineToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    marginTop: 2,
+    minHeight: 32,
   },
-  descToggleText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.primary,
-  },
-  detailsToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    paddingVertical: 12,
-    ...Shadow.xs,
-  },
-  detailsToggleText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.primary,
-  },
-  mapBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    padding: 14,
-    ...Shadow.sm,
-  },
-  mapIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.md,
-    backgroundColor: Palette.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapBtnInfo: { flex: 1, gap: 2 },
-  mapBtnTitle: {
+  inlineToggleText: { fontSize: 13, fontWeight: '700', color: Palette.primary },
+
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+
+  // Amenidades agrupadas ("O empreendimento oferece") — categorias + chips indigo
+  amenityGroups: { gap: Spacing.lg },
+  amenityGroup: { gap: 10 },
+  amenityGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  amenityGroupTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: Palette.text,
+    letterSpacing: -0.1,
   },
-  mapBtnAddr: {
-    fontSize: 12,
-    color: Palette.textTertiary,
+  amenityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  amenityChip: {
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primaryMid,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
+  amenityChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Palette.primaryDark,
+  },
+
+  // Contact
   contactList: { gap: 8 },
   contactCard: {
     flexDirection: 'row',
@@ -1384,109 +1577,99 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: 14,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
     ...Shadow.xs,
+    minHeight: 68,
   },
   contactAvatar: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contactInfo: { flex: 1, gap: 3 },
-  contactName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Palette.text,
-  },
-  contactPhone: {
-    fontSize: 13,
-    color: Palette.textSecondary,
-  },
-  // Comodidades
-  comodidadeGroup: { gap: 8 },
-  comodidadeGroupHeader: {
+  contactName: { fontSize: 14.5, fontWeight: '700', color: Palette.text },
+  contactPhone: { fontSize: 13.5, color: Palette.textSecondary, fontWeight: '500' },
+
+  // Hotsite CTA
+  hotsiteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  comodidadeGroupLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  comodidadeChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  comodidadeChip: {
-    backgroundColor: Palette.primaryLight,
-    borderRadius: Radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    gap: 12,
+    backgroundColor: Palette.accentLight,
     borderWidth: 1,
-    borderColor: Palette.primaryMid,
+    borderColor: Palette.accentMid,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 64,
   },
-  comodidadeChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Palette.primary,
+  hotsiteIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hotsiteTexts: { flex: 1, gap: 2 },
+  hotsiteTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Palette.text,
+    letterSpacing: -0.2,
+  },
+  hotsiteSub: {
+    fontSize: 12.5,
+    color: Palette.textSecondary,
   },
 
-  stepperSection: { gap: 10 },
+  // Stepper
   stepperCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    ...Shadow.sm,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    ...Shadow.xs,
   },
 
   // Documents
-  docsWrapper: {
-    gap: 6,
-  },
+  docsWrapper: { gap: 8 },
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     padding: 12,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
     ...Shadow.xs,
+    minHeight: 60,
   },
   docIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.sm,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
     backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  docLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: Palette.text,
-  },
+  docLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: Palette.text },
   docOpenBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Palette.primary,
+    backgroundColor: Palette.primaryLight,
   },
-  docOpenText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Palette.primary,
-  },
+  docOpenText: { fontSize: 12, fontWeight: '700', color: Palette.primary },
 
   // Videos
   videoList: { gap: 12 },
@@ -1494,7 +1677,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     overflow: 'hidden',
     backgroundColor: Palette.surface,
-    ...Shadow.md,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    ...Shadow.sm,
   },
   videoThumbWrapper: {
     position: 'relative',
@@ -1502,11 +1687,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     backgroundColor: Palette.border,
   },
-  videoThumb: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Palette.border,
-  },
+  videoThumb: { width: '100%', height: '100%', backgroundColor: Palette.border },
   videoThumbPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1518,14 +1699,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   videoPlayBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.45)',
   },
   ytBadge: {
     position: 'absolute',
@@ -1534,211 +1715,112 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
-  ytBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FF0000',
-  },
+  ytBadgeText: { fontSize: 11, fontWeight: '700', color: '#FF0000' },
   videoMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     gap: 8,
   },
-  videoMetaLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  videoMetaTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.text,
-    flex: 1,
-  },
+  videoMetaLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  videoMetaTitle: { fontSize: 13.5, fontWeight: '600', color: Palette.text, flex: 1 },
   videoAssistirBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Palette.primary,
+    backgroundColor: Palette.primaryLight,
   },
-  videoAssistirText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Palette.primary,
-  },
+  videoAssistirText: { fontSize: 12, fontWeight: '700', color: Palette.primary },
 
-  // Plantas tab
-  plantasGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  plantaItem: {
-    width: '47%',
-    gap: 6,
-  },
+  // Plantas
+  plantasGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  plantaItem: { width: '47%', gap: 8 },
   plantaImageWrap: {
     position: 'relative',
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: Palette.borderLight,
+    backgroundColor: Palette.surface,
+    ...Shadow.xs,
   },
-  plantaImage: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: Palette.surfaceVariant,
-  },
+  plantaImage: { width: '100%', aspectRatio: 1, backgroundColor: Palette.surfaceVariant },
   plantaExpandHint: {
     position: 'absolute',
     bottom: 8,
     right: 8,
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   plantaLabel: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: Palette.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
   },
 
-  // Photos tab
-  mainPhotoWrapper: {
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    position: 'relative',
-    ...Shadow.sm,
-  },
-  mainPhoto: {
-    width: SCREEN_WIDTH - Spacing.lg * 2,
-    height: 240,
-    backgroundColor: Palette.border,
-  },
-  photoCounter: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  photoCounterText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  expandHint: {
-    position: 'absolute',
-    bottom: 10,
-    left: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  expandHintText: {
-    fontSize: 11,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  thumbList: {
-    gap: 8,
-    paddingVertical: 2,
-  },
-  thumb: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.sm,
-    backgroundColor: Palette.border,
-    opacity: 0.6,
-  },
-  thumbActive: {
-    opacity: 1,
-    borderWidth: 2.5,
-    borderColor: Palette.primary,
-  },
-
   // Loading skeleton
-  skeletonHero: {
-    height: 300,
-    backgroundColor: Palette.surfaceVariant,
-  },
-  skeletonBody: {
-    padding: Spacing.lg,
-    gap: 12,
-  },
-  skeletonLine: {
-    borderRadius: Radius.full,
-    backgroundColor: Palette.border,
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
+  skeletonHero: { height: HERO_HEIGHT, backgroundColor: Palette.surfaceVariant },
+  skeletonBody: { padding: Spacing.lg, gap: 12 },
+  skeletonLine: { borderRadius: Radius.full, backgroundColor: Palette.border },
+  skeletonRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   skeletonChip: {
     width: 72,
-    height: 28,
+    height: 30,
     borderRadius: Radius.full,
     backgroundColor: Palette.border,
   },
+  skeletonCard: {
+    height: 92,
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.surfaceVariant,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+  },
+  skeletonGridRow: { flexDirection: 'row', gap: 8 },
+  skeletonGridItem: {
+    flex: 1,
+    height: 66,
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.surfaceVariant,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+  },
 
-  // CTA bar
+  // Sticky CTA bar
   ctaBar: {
     backgroundColor: Palette.surface,
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: Palette.borderLight,
     paddingTop: 12,
     paddingHorizontal: Spacing.lg,
     ...Shadow.lg,
   },
-  ctaContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   ctaBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Palette.primary,
     borderRadius: Radius.lg,
-    paddingVertical: 13,
+    paddingVertical: 15,
+    minHeight: 52,
     ...Shadow.sm,
   },
-  ctaBtnFull: {
-    flex: 1,
-  },
-  ctaBtnDisabled: {
-    opacity: 0.6,
-  },
-  ctaBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '800',
-  },
+  ctaBtnDisabled: { opacity: 0.6 },
+  ctaBtnText: { color: Palette.white, fontSize: 15, fontWeight: '800' },
 });

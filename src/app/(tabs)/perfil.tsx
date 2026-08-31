@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Linking,
   ScrollView,
@@ -46,21 +47,44 @@ interface MenuItemProps {
   onPress: () => void;
   danger?: boolean;
   value?: string;
+  chevron?: boolean;
 }
 
-function MenuItem({ icon, label, onPress, danger = false, value }: MenuItemProps) {
+function MenuItem({ icon, label, onPress, danger = false, value, chevron = true }: MenuItemProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function pressIn() {
+    Animated.spring(scale, { toValue: 0.985, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  }
+  function pressOut() {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+  }
+
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
-        <Ionicons name={icon} size={18} color={danger ? Palette.error : Palette.primary} />
-      </View>
-      <Text style={[styles.menuLabel, danger && styles.menuLabelDanger]}>{label}</Text>
-      {value ? (
-        <Text style={styles.menuValue}>{value}</Text>
-      ) : !danger ? (
-        <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
-      ) : null}
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={onPress}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={value ? `${label}: ${value}` : label}
+      >
+        <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
+          <Ionicons name={icon} size={18} color={danger ? Palette.error : Palette.primary} />
+        </View>
+        <Text style={[styles.menuLabel, danger && styles.menuLabelDanger]}>{label}</Text>
+        {value ? (
+          <Text style={styles.menuValue}>{value}</Text>
+        ) : null}
+        {!danger && chevron ? (
+          <View style={styles.menuChevron}>
+            <Ionicons name="chevron-forward" size={15} color={Palette.textTertiary} />
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -95,6 +119,8 @@ export default function PerfilScreen() {
   const [senhaNova, setSenhaNova] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [savingSenha, setSavingSenha] = useState(false);
+
+  const avatarScale = useRef(new Animated.Value(1)).current;
 
   function handleLogout() {
     Alert.alert(
@@ -191,6 +217,7 @@ export default function PerfilScreen() {
         .toUpperCase()
     : 'U';
 
+  const regiaoLabel = REGIOES.find((r) => r.value === user?.regiao)?.label;
   const podeRedefinirSenha = !!senhaAtual && !!senhaNova && !!confirmarSenha;
 
   if (!user) {
@@ -221,24 +248,47 @@ export default function PerfilScreen() {
           end={{ x: 0.9, y: 1 }}
           style={styles.hero}
         >
+          <View style={styles.heroGlowTop} pointerEvents="none" />
+          <View style={styles.heroGlowBottom} pointerEvents="none" />
+
           <View style={styles.heroContent}>
-            <TouchableOpacity style={styles.avatar} onPress={handleChangePhoto} activeOpacity={0.85}>
-              {user?.link_foto ? (
-                <Image source={{ uri: user.link_foto }} style={styles.avatarImage} />
-              ) : (
-                <Text style={styles.avatarText}>{initials}</Text>
-              )}
-              <View style={styles.avatarEditBadge}>
-                {uploadingFoto ? (
-                  <ActivityIndicator size="small" color={Palette.white} />
+            <Animated.View style={{ transform: [{ scale: avatarScale }] }}>
+              <TouchableOpacity
+                style={styles.avatar}
+                onPress={handleChangePhoto}
+                onPressIn={() =>
+                  Animated.spring(avatarScale, { toValue: 0.94, useNativeDriver: true, speed: 40, bounciness: 0 }).start()
+                }
+                onPressOut={() =>
+                  Animated.spring(avatarScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start()
+                }
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="Alterar foto de perfil"
+              >
+                {user?.link_foto ? (
+                  <Image source={{ uri: user.link_foto }} style={styles.avatarImage} />
                 ) : (
-                  <Ionicons name="camera" size={13} color={Palette.white} />
+                  <Text style={styles.avatarText}>{initials}</Text>
                 )}
-              </View>
-            </TouchableOpacity>
+                <View style={styles.avatarEditBadge}>
+                  {uploadingFoto ? (
+                    <ActivityIndicator size="small" color={Palette.white} />
+                  ) : (
+                    <Ionicons name="camera" size={13} color={Palette.white} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
             <View style={styles.heroInfo}>
-              <Text style={styles.heroName}>{user?.name ?? 'Usuário'}</Text>
-              <Text style={styles.heroEmail}>{user?.email ?? ''}</Text>
+              <Text style={styles.heroName} numberOfLines={1}>{user?.name ?? 'Usuário'}</Text>
+              <Text style={styles.heroEmail} numberOfLines={1}>{user?.email ?? ''}</Text>
+              {regiaoLabel && (
+                <View style={styles.heroBadge}>
+                  <Ionicons name="location" size={11} color={Palette.white} />
+                  <Text style={styles.heroBadgeText}>{regiaoLabel}</Text>
+                </View>
+              )}
             </View>
           </View>
         </LinearGradient>
@@ -262,7 +312,10 @@ export default function PerfilScreen() {
               keyboardType="phone-pad"
             />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Região</Text>
+              <View style={styles.fieldLabelRow}>
+                <Ionicons name="map-outline" size={14} color={Palette.textSecondary} />
+                <Text style={styles.fieldLabel}>Região de interesse</Text>
+              </View>
               <View style={styles.regiaoChips}>
                 {REGIOES.map((r) => {
                   const active = regiao === r.value;
@@ -272,7 +325,12 @@ export default function PerfilScreen() {
                       style={[styles.regiaoChip, active && styles.regiaoChipActive]}
                       onPress={() => setRegiao(active ? '' : r.value)}
                       activeOpacity={0.8}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`Região ${r.label}`}
                     >
+                      {active && <Ionicons name="checkmark" size={13} color={Palette.white} />}
                       <Text style={[styles.regiaoChipText, active && styles.regiaoChipTextActive]}>
                         {r.label}
                       </Text>
@@ -331,6 +389,14 @@ export default function PerfilScreen() {
         </MenuSection>
 
         {/* ── Ajuda (Suporte + Legal) ── */}
+        <MenuSection title="Ferramentas">
+          <MenuItem
+            icon="paper-plane-outline"
+            label="Meus Hotsites"
+            onPress={() => router.push('/hotsites')}
+          />
+        </MenuSection>
+
         <MenuSection title="Ajuda">
           <MenuItem
             icon="mail-outline"
@@ -364,6 +430,7 @@ export default function PerfilScreen() {
             label="Versão do app"
             value={`v${APP_VERSION}`}
             onPress={() => {}}
+            chevron={false}
           />
           <Divider />
           <MenuItem
@@ -371,6 +438,7 @@ export default function PerfilScreen() {
             label="Blow"
             value="Portfólio Imobiliário"
             onPress={() => {}}
+            chevron={false}
           />
           <Divider />
           <MenuItem
@@ -427,7 +495,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.xxl,
+    borderBottomLeftRadius: Radius.xxl,
+    borderBottomRightRadius: Radius.xxl,
     gap: Spacing.lg,
+    overflow: 'hidden',
+    ...Shadow.md,
+  },
+  heroGlowTop: {
+    position: 'absolute',
+    top: -70,
+    right: -50,
+    width: 190,
+    height: 190,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  heroGlowBottom: {
+    position: 'absolute',
+    bottom: -90,
+    left: -40,
+    width: 200,
+    height: 200,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   heroContent: {
     flexDirection: 'row',
@@ -435,15 +525,16 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
-    width: 64,
-    height: 64,
+    width: 72,
+    height: 72,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,255,255,0.55)',
     overflow: 'visible',
+    ...Shadow.md,
   },
   avatarImage: {
     width: '100%',
@@ -451,7 +542,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   avatarText: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '900',
     color: Palette.white,
     letterSpacing: 1,
@@ -460,8 +551,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 24,
-    height: 24,
+    width: 25,
+    height: 25,
     borderRadius: Radius.full,
     backgroundColor: Palette.primaryHover,
     alignItems: 'center',
@@ -478,8 +569,27 @@ const styles = StyleSheet.create({
   },
   heroEmail: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.72)',
     fontWeight: '400',
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  heroBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Palette.white,
+    letterSpacing: 0.2,
   },
 
   // Sections
@@ -498,7 +608,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     overflow: 'hidden',
     ...Shadow.sm,
     borderWidth: 1,
@@ -506,14 +616,19 @@ const styles = StyleSheet.create({
   },
   formCard: {
     backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     padding: Spacing.lg,
     gap: Spacing.md,
     ...Shadow.sm,
     borderWidth: 1,
     borderColor: Palette.borderLight,
   },
-  fieldGroup: { gap: 8 },
+  fieldGroup: { gap: 10 },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
@@ -525,8 +640,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   regiaoChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: Radius.full,
     borderWidth: 1.5,
     borderColor: Palette.border,
@@ -535,6 +653,7 @@ const styles = StyleSheet.create({
   regiaoChipActive: {
     backgroundColor: Palette.primary,
     borderColor: Palette.primary,
+    ...Shadow.xs,
   },
   regiaoChipText: {
     fontSize: 12,
@@ -543,6 +662,7 @@ const styles = StyleSheet.create({
   },
   regiaoChipTextActive: {
     color: Palette.white,
+    fontWeight: '700',
   },
 
   // Menu items
@@ -552,17 +672,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: 15,
     gap: 12,
+    minHeight: 44,
   },
   menuIcon: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: Radius.md,
     backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuIconDanger: {
     backgroundColor: Palette.errorBg,
+    borderColor: Palette.errorBg,
   },
   menuLabel: {
     flex: 1,
@@ -577,10 +701,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Palette.textTertiary,
     fontWeight: '500',
+    marginRight: 2,
+  },
+  menuChevron: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   divider: {
     height: 1,
     backgroundColor: Palette.borderLight,
-    marginHorizontal: Spacing.lg,
+    marginLeft: 66,
   },
 });

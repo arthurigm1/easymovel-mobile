@@ -111,6 +111,7 @@ export interface Empreendimento {
   unidades_por_andar?: number;
   area_terreno?: number;
   final_construcao?: string;
+  data_lancamento?: string;
   previsao_na_planta?: string;
   valor_condominio?: number;
   valor_iptu?: number;
