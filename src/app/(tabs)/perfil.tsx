@@ -22,6 +22,11 @@ import { useAuthStore } from '@/store/auth';
 import { AppInput } from '@/components/AppInput';
 import { AppButton } from '@/components/AppButton';
 import { atualizarUsuario, alterarSenha, substituirFotoUsuario } from '@/services/usuarios';
+import {
+  podeUsarHotsite,
+  podeVerDashboard,
+  podeVerMeusEmpreendimentos,
+} from '@/utils/permissions';
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
@@ -389,46 +394,60 @@ export default function PerfilScreen() {
         </MenuSection>
 
         {/* ── Ajuda (Suporte + Legal) ── */}
-        <MenuSection title="Ferramentas">
-          <MenuItem
-            icon="paper-plane-outline"
-            label="Meus Hotsites"
-            onPress={() => router.push('/hotsites')}
-          />
-          {user?.tipo_usuario === 'construtora' && user?.empresa_id ? (
-            <>
-              <Divider />
-              <MenuItem
-                icon="business-outline"
-                label="Meus Empreendimentos"
-                onPress={() =>
-                  router.push({
-                    pathname: '/(tabs)/inicio',
-                    params: {
-                      empresa_id: user.empresa_id!,
-                      empresa_nome: 'Meus Empreendimentos',
-                      meus: '1',
-                    },
-                  })
-                }
-              />
-              <Divider />
-              <MenuItem
-                icon="stats-chart-outline"
-                label="Dashboard de acessos"
-                onPress={() => router.push('/dashboard')}
-              />
-            </>
-          ) : null}
-          <Divider />
+        {/* Ferramentas de venda — imobiliária e corretor (ocultas p/ construtora) */}
+        {podeUsarHotsite(user) && (
+          <MenuSection title="Ferramentas de venda">
+            <MenuItem
+              icon="paper-plane-outline"
+              label="Meus Hotsites"
+              onPress={() => router.push('/hotsites')}
+            />
+            <Divider />
+            <MenuItem
+              icon="calculator-outline"
+              label="Simular financiamento"
+              onPress={() => router.push('/simulador')}
+            />
+          </MenuSection>
+        )}
+
+        {/* Gestão — só construtora */}
+        {podeVerMeusEmpreendimentos(user) && (
+          <MenuSection title="Gestão">
+            <MenuItem
+              icon="business-outline"
+              label="Meus Empreendimentos"
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/inicio',
+                  params: {
+                    empresa_id: user!.empresa_id!,
+                    empresa_nome: 'Meus Empreendimentos',
+                    meus: '1',
+                  },
+                })
+              }
+            />
+            {podeVerDashboard(user) && (
+              <>
+                <Divider />
+                <MenuItem
+                  icon="stats-chart-outline"
+                  label="Dashboard de acessos"
+                  onPress={() => router.push('/dashboard')}
+                />
+              </>
+            )}
+          </MenuSection>
+        )}
+
+        <MenuSection title="Ajuda">
           <MenuItem
             icon="chatbubbles-outline"
             label="Fale Conosco"
             onPress={() => router.push('/fale-conosco')}
           />
-        </MenuSection>
-
-        <MenuSection title="Ajuda">
+          <Divider />
           <MenuItem
             icon="mail-outline"
             label="Enviar e-mail"

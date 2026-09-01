@@ -88,6 +88,73 @@ export async function setAnuncioPausado(
   await api.put(`/empreendimentos/${empreendimentoId}`, { anuncio_pausado: pausado });
 }
 
+// Nova unidade avulsa (POST /unidades/:empreendimento_id — schema do backend).
+export interface NovaUnidade {
+  descricao: string;
+  bloco?: string;
+  status?: string;
+  area?: number;
+  area_externa?: number;
+  quant_banheiros?: number;
+  quant_quartos?: number;
+  quant_suites?: number;
+  quant_vagas?: number;
+  valor?: number;
+  tipologia?: string;
+}
+
+export async function criarUnidade(
+  empreendimentoId: string,
+  unidade: NovaUnidade
+): Promise<void> {
+  await api.post(`/unidades/${empreendimentoId}`, unidade);
+}
+
+export async function excluirUnidade(unidadeId: string): Promise<void> {
+  await api.delete(`/unidades/${unidadeId}`);
+}
+
+// ─── Tabela de vendas via IA ─────────────────────────────────────────────────
+// POST /tabela-vendas-ia/:id — sobe o PDF/planilha da tabela; a IA devolve as
+// unidades lidas + o id do histórico. A aplicação em si usa atualizarUnidades
+// (mesmo caminho do PWA). O PUT do histórico é só a avaliação 👍/👎.
+
+export interface TabelaIAResponse {
+  sucesso: boolean;
+  mensagem?: string;
+  unidades?: UnidadeItem[];
+  ia_tabela_vendas_historico_id?: string;
+}
+
+export async function processarTabelaVendasIA(
+  empreendimentoId: string,
+  file: { uri: string; name: string; mimeType?: string },
+  metodo: 'status_valor' | 'cadastro_completo'
+): Promise<TabelaIAResponse> {
+  const formData = new FormData();
+  formData.append('tabela_vendas', {
+    uri: file.uri,
+    name: file.name,
+    type: file.mimeType ?? 'application/octet-stream',
+  } as unknown as Blob);
+  formData.append('metodo', metodo);
+
+  const response = await api.post<TabelaIAResponse>(
+    `/tabela-vendas-ia/${empreendimentoId}`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      // A IA pode levar minutos num PDF grande (o PWA usa 300s).
+      timeout: 300000,
+    }
+  );
+  return response.data;
+}
+
+export async function avaliarTabelaIA(historicoId: string, sucesso: boolean): Promise<void> {
+  await api.put(`/tabela-vendas-ia-historico/${historicoId}`, { sucesso });
+}
+
 // Corretores interessados num pré-lançamento (visão do dono).
 export interface InteressadoPreLancamento {
   id?: string;

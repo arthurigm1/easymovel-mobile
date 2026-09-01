@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,15 +17,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import toast from '@/utils/toast';
 import { notifySuccess, select } from '@/utils/haptics';
-import { atualizarUnidades } from '@/services/empreendimentos';
+import {
+  atualizarUnidades,
+  criarUnidade,
+  excluirUnidade,
+} from '@/services/empreendimentos';
 import { UNIT_STATUS } from '@/constants/status';
 import { formatCurrencyExact } from '@/utils/format';
 import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
 import type { UnidadeItem } from '@/types';
 
-// Edição rápida de unidade (dono construtora) — a ação nº 1 do celular:
-// vendeu/reservou → atualiza o status e o valor na hora. Mesmo contrato do
-// PWA: PUT /empreendimentos/:id com a lista completa de unidades.
+// Edição/criação rápida de unidade (dono construtora) — vendeu/reservou →
+// atualiza na hora. Mesmos contratos do PWA:
+//  - editar: PUT /empreendimentos/:id com a lista completa de unidades
+//  - criar:  POST /unidades/:empreendimento_id
+//  - excluir: DELETE /unidades/:id
 
 const STATUS_OPTIONS = [
   'Disponível',
@@ -39,14 +46,16 @@ const STATUS_OPTIONS = [
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** Unidade em edição — null com visible=true entra no modo "nova unidade". */
   unit: UnidadeItem | null;
   empreendimentoId: string;
-  /** Lista completa de unidades do empreendimento (o PUT envia todas). */
+  /** Lista completa de unidades do empreendimento (o PUT de edição envia todas). */
   allUnits: UnidadeItem[];
+  variosBlocos?: boolean;
   onSaved: () => void;
 }
 
-// "1234,56" | "1.234,56" | "1234.56" → número (ou undefined se vazio/inválido)
+// "1234,56" | "1.234,56" → número (ou undefined se vazio/inválido)
 function parseValor(raw: string): number | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
@@ -55,50 +64,85 @@ function parseValor(raw: string): number | undefined {
   return Number.isNaN(num) ? undefined : num;
 }
 
+function parseIntOr(raw: string): number | undefined {
+  const n = Number(raw.trim());
+  return raw.trim() && Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
 export function UnitEditSheet({
   visible,
   onClose,
   unit,
   empreendimentoId,
   allUnits,
+  variosBlocos,
   onSaved,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const isNew = unit == null;
+
   const [status, setStatus] = useState<string>('Disponível');
   const [valorText, setValorText] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [tipologia, setTipologia] = useState('');
+  const [bloco, setBloco] = useState('');
+  const [areaText, setAreaText] = useState('');
+  const [quartosText, setQuartosText] = useState('');
+  const [vagasText, setVagasText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // Sincroniza o formulário com a unidade selecionada a cada abertura.
+  // Sincroniza o formulário a cada abertura.
   useEffect(() => {
-    if (visible && unit) {
-      setStatus(unit.status ?? 'Disponível');
-      setValorText(
-        unit.valor != null && Number(unit.valor) > 0
-          ? Number(unit.valor).toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          : ''
-      );
-    }
+    if (!visible) return;
+    setStatus(unit?.status ?? 'Disponível');
+    setValorText(
+      unit?.valor != null && Number(unit.valor) > 0
+        ? Number(unit.valor).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : ''
+    );
+    setDescricao(unit?.descricao ?? '');
+    setTipologia(unit?.tipologia ?? '');
+    setBloco(unit?.bloco ?? '');
+    setAreaText(unit?.area != null ? String(unit.area) : '');
+    setQuartosText(unit?.quant_quartos != null ? String(unit.quant_quartos) : '');
+    setVagasText(unit?.quant_vagas != null ? String(unit.quant_vagas) : '');
   }, [visible, unit]);
 
-  if (!unit) return null;
-
-  const unitLabel = [unit.tipologia, unit.descricao].filter(Boolean).join(' · ');
+  const unitLabel = isNew
+    ? 'Nova unidade'
+    : [unit?.tipologia, unit?.descricao].filter(Boolean).join(' · ') || 'Unidade';
   const novoValor = parseValor(valorText);
-  const mudou = status !== (unit.status ?? '') || novoValor !== (unit.valor ?? undefined);
+  const canSave = isNew
+    ? descricao.trim().length > 0
+    : status !== (unit?.status ?? '') || novoValor !== (unit?.valor ?? undefined);
 
   async function handleSave() {
-    if (!unit) return;
     setSaving(true);
     try {
-      const updated = allUnits.map((u) =>
-        u.id === unit.id ? { ...u, status, valor: novoValor } : u
-      );
-      await atualizarUnidades(empreendimentoId, updated);
+      if (isNew) {
+        await criarUnidade(empreendimentoId, {
+          descricao: descricao.trim(),
+          tipologia: tipologia.trim() || undefined,
+          bloco: variosBlocos ? bloco.trim() || undefined : undefined,
+          status,
+          valor: novoValor,
+          area: parseValor(areaText),
+          quant_quartos: parseIntOr(quartosText),
+          quant_vagas: parseIntOr(vagasText),
+        });
+        toast.success('Unidade adicionada!');
+      } else {
+        const updated = allUnits.map((u) =>
+          u.id === unit!.id ? { ...u, status, valor: novoValor } : u
+        );
+        await atualizarUnidades(empreendimentoId, updated);
+        toast.success('Unidade atualizada!');
+      }
       notifySuccess();
-      toast.success('Unidade atualizada!');
       onSaved();
       onClose();
     } catch {
@@ -106,6 +150,34 @@ export function UnitEditSheet({
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleDelete() {
+    if (!unit) return;
+    Alert.alert(
+      'Excluir unidade',
+      `Excluir a unidade ${unit.descricao ?? ''}? Essa ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await excluirUnidade(unit.id);
+              toast.success('Unidade excluída.');
+              onSaved();
+              onClose();
+            } catch {
+              toast.error('Não foi possível excluir. Tente novamente.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -129,12 +201,18 @@ export function UnitEditSheet({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerIcon}>
-              <Ionicons name="create-outline" size={18} color={Palette.primary} />
+              <Ionicons
+                name={isNew ? 'add' : 'create-outline'}
+                size={18}
+                color={Palette.primary}
+              />
             </View>
             <View style={styles.headerTexts}>
-              <Text style={styles.headerTitle}>Editar unidade</Text>
+              <Text style={styles.headerTitle}>
+                {isNew ? 'Adicionar unidade' : 'Editar unidade'}
+              </Text>
               <Text style={styles.headerSub} numberOfLines={1}>
-                {unitLabel || 'Unidade'}
+                {unitLabel}
               </Text>
             </View>
             <TouchableOpacity
@@ -153,6 +231,87 @@ export function UnitEditSheet({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
           >
+            {/* Identificação (só no modo novo) */}
+            {isNew && (
+              <>
+                <View style={styles.rowFields}>
+                  <View style={[styles.field, styles.fieldFlex]}>
+                    <Text style={styles.fieldLabel}>Unidade *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={descricao}
+                      onChangeText={setDescricao}
+                      placeholder="Ex.: 502"
+                      placeholderTextColor={Palette.textTertiary}
+                      accessibilityLabel="Identificação da unidade"
+                    />
+                  </View>
+                  {variosBlocos ? (
+                    <View style={[styles.field, styles.fieldFlex]}>
+                      <Text style={styles.fieldLabel}>Bloco</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={bloco}
+                        onChangeText={setBloco}
+                        placeholder="Ex.: A"
+                        placeholderTextColor={Palette.textTertiary}
+                        accessibilityLabel="Bloco"
+                      />
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Tipologia</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={tipologia}
+                    onChangeText={setTipologia}
+                    placeholder="Ex.: Apto. Tipo"
+                    placeholderTextColor={Palette.textTertiary}
+                    accessibilityLabel="Tipologia"
+                  />
+                </View>
+                <View style={styles.rowFields}>
+                  <View style={[styles.field, styles.fieldFlex]}>
+                    <Text style={styles.fieldLabel}>Área (m²)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={areaText}
+                      onChangeText={setAreaText}
+                      placeholder="0"
+                      placeholderTextColor={Palette.textTertiary}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel="Área interna em metros quadrados"
+                    />
+                  </View>
+                  <View style={[styles.field, styles.fieldFlex]}>
+                    <Text style={styles.fieldLabel}>Quartos</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={quartosText}
+                      onChangeText={setQuartosText}
+                      placeholder="0"
+                      placeholderTextColor={Palette.textTertiary}
+                      keyboardType="number-pad"
+                      accessibilityLabel="Quantidade de quartos"
+                    />
+                  </View>
+                  <View style={[styles.field, styles.fieldFlex]}>
+                    <Text style={styles.fieldLabel}>Vagas</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={vagasText}
+                      onChangeText={setVagasText}
+                      placeholder="0"
+                      placeholderTextColor={Palette.textTertiary}
+                      keyboardType="number-pad"
+                      accessibilityLabel="Quantidade de vagas"
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+
             {/* Status */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Status</Text>
@@ -186,9 +345,7 @@ export function UnitEditSheet({
                       >
                         {s}
                       </Text>
-                      {active && (
-                        <Ionicons name="checkmark" size={13} color={cfg.text} />
-                      )}
+                      {active && <Ionicons name="checkmark" size={13} color={cfg.text} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -215,23 +372,51 @@ export function UnitEditSheet({
 
             {/* Salvar */}
             <TouchableOpacity
-              style={[styles.saveBtn, (!mudou || saving) && styles.saveBtnDisabled]}
+              style={[styles.saveBtn, (!canSave || saving) && styles.saveBtnDisabled]}
               onPress={handleSave}
-              disabled={!mudou || saving}
+              disabled={!canSave || saving}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityState={{ disabled: !mudou || saving, busy: saving }}
-              accessibilityLabel="Salvar alterações da unidade"
+              accessibilityState={{ disabled: !canSave || saving, busy: saving }}
+              accessibilityLabel={isNew ? 'Adicionar unidade' : 'Salvar alterações da unidade'}
             >
               {saving ? (
                 <ActivityIndicator size="small" color={Palette.white} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={17} color={Palette.white} />
-                  <Text style={styles.saveBtnText}>Salvar alterações</Text>
+                  <Ionicons
+                    name={isNew ? 'add-circle' : 'checkmark-circle'}
+                    size={17}
+                    color={Palette.white}
+                  />
+                  <Text style={styles.saveBtnText}>
+                    {isNew ? 'Adicionar unidade' : 'Salvar alterações'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
+
+            {/* Excluir (só edição) */}
+            {!isNew && (
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={handleDelete}
+                disabled={deleting}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: deleting, busy: deleting }}
+                accessibilityLabel="Excluir esta unidade"
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={Palette.error} />
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={15} color={Palette.error} />
+                    <Text style={styles.deleteBtnText}>Excluir unidade</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
             <Text style={styles.hint}>
               A tabela de vendas é atualizada na hora para todos os corretores.
@@ -252,6 +437,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.bg,
     borderTopLeftRadius: Radius.xxl,
     borderTopRightRadius: Radius.xxl,
+    maxHeight: '90%',
     ...Shadow.xl,
   },
   grabber: {
@@ -304,7 +490,12 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
 
+  rowFields: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   field: { gap: 8 },
+  fieldFlex: { flex: 1 },
   fieldLabel: {
     fontSize: 12.5,
     fontWeight: '700',
@@ -372,6 +563,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: Palette.white,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.errorBg,
+  },
+  deleteBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: Palette.error,
   },
   hint: {
     fontSize: 12,

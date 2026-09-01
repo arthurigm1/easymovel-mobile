@@ -12,6 +12,8 @@ export interface EmpresaInfo {
   nome_mascara?: string;
   nome_fantasia?: string;
   razao_social?: string;
+  /** Quando true, a tabela de vendas não é exibida para quem não é o dono. */
+  oculta_tabela_de_vendas?: boolean;
   anexos?: AnexoItem[];
   link_portal?: string;
   nome_do_responsavel?: string;

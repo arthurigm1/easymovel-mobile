@@ -34,11 +34,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEmpreendimento } from '@/hooks/useEmpreendimentos';
 import { useAuthStore } from '@/store/auth';
 import { postAcesso, registrarInteresse, setAnuncioPausado } from '@/services/empreendimentos';
-import { UnitEditSheet } from '@/components/UnitEditSheet';
 import { InteressadosSheet } from '@/components/InteressadosSheet';
 import toast from '@/utils/toast';
 import { StatusBadge } from '@/components/StatusBadge';
-import { SalesTable } from '@/components/SalesTable';
 import { EmptyState } from '@/components/EmptyState';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
@@ -46,10 +44,13 @@ import { StatusStepper } from '@/components/StatusStepper';
 import { MapPreview } from '@/components/MapPreview';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { ContactCTA } from '@/components/ContactCTA';
-import { ParcelamentoSheet } from '@/components/ParcelamentoSheet';
 import { GerarHotsiteSheet } from '@/components/GerarHotsiteSheet';
 import { tapLight, tapMedium } from '@/utils/haptics';
-import type { UnidadeItem } from '@/types';
+import {
+  isDonoEmpreendimento,
+  podeRegistrarInteresse,
+  podeUsarHotsite,
+} from '@/utils/permissions';
 import {
   formatCurrency,
   formatDate,
@@ -286,9 +287,7 @@ export default function EmpreendimentoDetail() {
   const [plantasLightboxIndex, setPlantasLightboxIndex] = useState(0);
   const [plantasLightboxVisible, setPlantasLightboxVisible] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
-  const [parcelamentoUnit, setParcelamentoUnit] = useState<UnidadeItem | null>(null);
   const [hotsiteVisible, setHotsiteVisible] = useState(false);
-  const [editUnit, setEditUnit] = useState<UnidadeItem | null>(null);
   const [pausing, setPausing] = useState(false);
   const [interessadosVisible, setInteressadosVisible] = useState(false);
 
@@ -599,13 +598,11 @@ export default function EmpreendimentoDetail() {
 
   const documentos = getDocumentos(e);
   const unitCount = e.unidades?.length ?? 0;
-  const hasParcelamentos = (e.parcelamentos?.length ?? 0) > 0;
-  // Dono do anúncio (construtora): pode editar unidades e pausar o anúncio —
-  // mesma regra visual do PWA (can update Empreendimento da própria empresa).
-  const isOwner =
-    user?.tipo_usuario === 'construtora' &&
-    !!user?.empresa_id &&
-    user.empresa_id === (e.empresa_id ?? e.empresa?.id);
+  // Permissões (ver src/utils/permissions.ts): o dono gerencia; imobiliária e
+  // corretor têm as ferramentas de venda, que ficam ocultas para a construtora.
+  const isOwner = isDonoEmpreendimento(user, e);
+  const mostrarHotsite = podeUsarHotsite(user);
+  const mostrarInteresse = podeRegistrarInteresse(user);
 
   async function handleTogglePause(next: boolean) {
     setPausing(true);
@@ -629,7 +626,10 @@ export default function EmpreendimentoDetail() {
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         contentContainerStyle={{
-          paddingBottom: isPreLancamento ? 96 + insets.bottom : Spacing.xxxl + insets.bottom,
+          paddingBottom:
+            isPreLancamento && mostrarInteresse
+              ? 96 + insets.bottom
+              : Spacing.xxxl + insets.bottom,
         }}
         refreshControl={
           <RefreshControl
@@ -843,8 +843,8 @@ export default function EmpreendimentoDetail() {
             </Reveal>
           )}
 
-          {/* Gerar Hotsite — ferramenta do corretor (como no PWA) */}
-          {isAuthenticated && (
+          {/* Gerar Hotsite — ferramenta de venda: oculta para construtora */}
+          {isAuthenticated && mostrarHotsite && (
             <Reveal delay={230} disabled={reduceMotion}>
               <PressableScale
                 style={styles.hotsiteBtn}
@@ -1186,39 +1186,40 @@ export default function EmpreendimentoDetail() {
             </Reveal>
           )}
 
-          {/* Tabela de vendas */}
+          {/* Tabela de vendas — abre em tela própria */}
           {unitCount > 0 && (
             <Reveal delay={120} disabled={reduceMotion} style={styles.section}>
               <SectionHeader title="Tabela de vendas" count={unitCount} />
               {isAuthenticated ? (
-                <>
-                  {isOwner ? (
-                    <Text style={styles.sectionHint}>
-                      Toque em uma unidade para editar status e valor.
+                <PressableScale
+                  style={styles.tabelaCard}
+                  onPress={() => {
+                    tapLight();
+                    router.push({
+                      pathname: '/tabela-vendas/[id]',
+                      params: { id: e.id },
+                    });
+                  }}
+                  reduceMotion={reduceMotion}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir tabela de vendas com ${unitCount} unidades`}
+                >
+                  <View style={styles.tabelaIcon}>
+                    <Ionicons name="grid-outline" size={19} color={Palette.white} />
+                  </View>
+                  <View style={styles.tabelaTexts}>
+                    <Text style={styles.tabelaTitle}>
+                      {isOwner ? 'Gerenciar tabela de vendas' : 'Ver tabela de vendas'}
                     </Text>
-                  ) : hasParcelamentos ? (
-                    <Text style={styles.sectionHint}>
-                      Toque em uma unidade para ver o plano de pagamento.
+                    <Text style={styles.tabelaSub} numberOfLines={1}>
+                      {e.unidades_disponiveis != null
+                        ? `${e.unidades_disponiveis} disponíveis de ${unitCount} unidades`
+                        : `${unitCount} unidades`}
+                      {isOwner ? ' · editar, adicionar, IA' : ' · preços, plantas e PDF'}
                     </Text>
-                  ) : null}
-                  <SalesTable
-                    units={e.unidades ?? []}
-                    varios_blocos={e.varios_blocos}
-                    onUnitPress={
-                      isOwner
-                        ? (unit) => {
-                            tapLight();
-                            setEditUnit(unit);
-                          }
-                        : hasParcelamentos
-                          ? (unit) => {
-                              tapLight();
-                              setParcelamentoUnit(unit);
-                            }
-                          : undefined
-                    }
-                  />
-                </>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Palette.white} />
+                </PressableScale>
               ) : (
                 <LoginPrompt message="Entre na sua conta para ver a tabela de vendas com preços e disponibilidade de cada unidade." />
               )}
@@ -1285,16 +1286,6 @@ export default function EmpreendimentoDetail() {
         empreendimentoNome={e.nome_empreendimento}
       />
 
-      {/* Edição de unidade (dono construtora) */}
-      <UnitEditSheet
-        visible={editUnit != null}
-        onClose={() => setEditUnit(null)}
-        unit={editUnit}
-        empreendimentoId={e.id}
-        allUnits={e.unidades ?? []}
-        onSaved={() => refetch()}
-      />
-
       {/* Gerar Hotsite */}
       <GerarHotsiteSheet
         visible={hotsiteVisible}
@@ -1305,18 +1296,9 @@ export default function EmpreendimentoDetail() {
         tipoProduto={e.tipo_produto}
       />
 
-      {/* Plano de pagamento da unidade (tabela de parcelamentos, como no PWA) */}
-      <ParcelamentoSheet
-        visible={parcelamentoUnit != null}
-        onClose={() => setParcelamentoUnit(null)}
-        unit={parcelamentoUnit}
-        parcelamentos={e.parcelamentos ?? []}
-        empreendimentoNome={e.nome_empreendimento}
-        variosBlocos={e.varios_blocos}
-      />
-
-      {/* Sticky bottom CTA — Tenho interesse (pré-lançamento) */}
-      {isPreLancamento && (
+      {/* Sticky bottom CTA — Tenho interesse (pré-lançamento).
+          Só para quem vende: a construtora não se inscreve no próprio anúncio. */}
+      {isPreLancamento && mostrarInteresse && (
         <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
           <PressableScale
             style={[styles.ctaBtn, interesseLoading && styles.ctaBtnDisabled]}
@@ -1754,6 +1736,37 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '800',
     color: Palette.primary,
+  },
+  // Entrada para a tela dedicada da tabela de vendas
+  tabelaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Palette.primary,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    minHeight: 68,
+    ...Shadow.sm,
+  },
+  tabelaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabelaTexts: { flex: 1, gap: 2 },
+  tabelaTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Palette.white,
+    letterSpacing: -0.2,
+  },
+  tabelaSub: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.82)',
   },
 
   // Hotsite CTA
