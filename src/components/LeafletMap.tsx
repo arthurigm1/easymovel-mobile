@@ -1,11 +1,14 @@
-import { memo, useMemo, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 // Mapa Leaflet + OpenStreetMap dentro de um WebView. Usado no Android, onde o
 // Google Maps do react-native-maps exige API key (que o Expo Go não embute) e
-// renderiza em branco sem ela. Sem chave, sem custo — e com os mesmos pins de
-// preço em pílula indigo do design nativo.
+// renderiza em branco sem ela.
+//
+// Usa leaflet.markercluster: com mais de cem empreendimentos na mesma cidade os
+// pins se empilham e o mapa vira uma mancha — o cluster agrupa por proximidade
+// e abre conforme o zoom.
 
 export interface MapPin {
   id: string;
@@ -13,6 +16,11 @@ export interface MapPin {
   lng: number;
   /** Texto da pílula (preço formatado). Sem label vira um pin circular. */
   label?: string | null;
+}
+
+export interface LeafletMapHandle {
+  /** Reenquadra o mapa nos pins atuais. */
+  fitAll: () => void;
 }
 
 interface Props {
@@ -31,7 +39,9 @@ function buildHtml(pins: MapPin[], bounds: Props['bounds']): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <style>
   html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F7F7FA; }
   .pin {
@@ -45,6 +55,15 @@ function buildHtml(pins: MapPin[], bounds: Props['bounds']): string {
   .pin.dot { width: 14px; height: 14px; padding: 0; border-radius: 999px; }
   .pin.sel { background: #fff; color: #5457F0; border-color: #5457F0; transform: scale(1.1); }
   .leaflet-div-icon { background: transparent; border: none; }
+  /* Cluster no indigo da marca, com anel translúcido */
+  .cl {
+    display: flex; align-items: center; justify-content: center;
+    background: #5457F0; color: #fff; border-radius: 999px;
+    font: 800 13px -apple-system, Roboto, sans-serif;
+    box-shadow: 0 0 0 6px rgba(84,87,240,0.20), 0 2px 10px rgba(22,22,29,0.25);
+    border: 2px solid #fff;
+  }
+  .leaflet-control-attribution { font-size: 9px; }
 </style>
 </head>
 <body>
@@ -64,42 +83,78 @@ function buildHtml(pins: MapPin[], bounds: Props['bounds']): string {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
   }
   function clearSel() {
-    if (selected) { selected.getElement().querySelector('.pin').classList.remove('sel'); selected = null; }
+    if (selected && selected.getElement()) {
+      var el = selected.getElement().querySelector('.pin');
+      if (el) el.classList.remove('sel');
+    }
+    selected = null;
   }
+
+  var cluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 55,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: function (c) {
+      var n = c.getChildCount();
+      var size = n < 10 ? 34 : (n < 50 ? 40 : 48);
+      return L.divIcon({
+        html: '<div class="cl" style="width:' + size + 'px;height:' + size + 'px">' + n + '</div>',
+        className: '',
+        iconSize: L.point(size, size)
+      });
+    }
+  });
 
   PINS.forEach(function (p) {
     var cls = p.label ? 'pin' : 'pin dot';
     var html = '<div class="' + cls + '">' + (p.label ? p.label : '') + '</div>';
     var icon = L.divIcon({ html: html, iconSize: null, iconAnchor: p.label ? [30, 26] : [7, 14] });
-    var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
+    var m = L.marker([p.lat, p.lng], { icon: icon });
     m.on('click', function () {
       clearSel();
       selected = m;
-      m.getElement().querySelector('.pin').classList.add('sel');
+      var el = m.getElement() && m.getElement().querySelector('.pin');
+      if (el) el.classList.add('sel');
       send({ type: 'pin', id: p.id });
     });
+    cluster.addLayer(m);
   });
+  map.addLayer(cluster);
 
   map.on('click', function () { clearSel(); send({ type: 'map' }); });
 
-  if (BOUNDS) {
-    map.fitBounds(BOUNDS, { padding: [70, 40], maxZoom: 15 });
-  } else if (PINS.length) {
-    map.fitBounds(PINS.map(function (p) { return [p.lat, p.lng]; }), { padding: [70, 40], maxZoom: 15 });
+  function fitAll() {
+    if (BOUNDS) {
+      map.fitBounds(BOUNDS, { padding: [70, 40], maxZoom: 15 });
+    } else if (PINS.length) {
+      map.fitBounds(PINS.map(function (p) { return [p.lat, p.lng]; }), { padding: [70, 40], maxZoom: 15 });
+    }
   }
+  // Exposto para o app pedir o reenquadramento pelo botão flutuante.
+  window.fitAll = fitAll;
+  fitAll();
 </script>
 </body>
 </html>`;
 }
 
-export const LeafletMap = memo(function LeafletMap({ pins, bounds, onSelect }: Props) {
+export const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
+  { pins, bounds, onSelect },
+  ref
+) {
   const html = useMemo(() => buildHtml(pins, bounds), [pins, bounds]);
+  const webRef = useRef<WebView>(null);
   // Evita re-render do WebView por identidade nova do callback.
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
+  useImperativeHandle(ref, () => ({
+    fitAll: () => webRef.current?.injectJavaScript('window.fitAll && window.fitAll(); true;'),
+  }));
+
   return (
     <WebView
+      ref={webRef}
       originWhitelist={['*']}
       source={{ html }}
       style={styles.web}

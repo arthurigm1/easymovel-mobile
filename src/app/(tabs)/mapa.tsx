@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,13 +14,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useEmpreendimentosMapa } from '@/hooks/useEmpreendimentos';
-import { LeafletMap, type MapPin } from '@/components/LeafletMap';
+import { LeafletMap, type MapPin, type LeafletMapHandle } from '@/components/LeafletMap';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatCurrency, getMainImage, getEmpresaNome } from '@/utils/format';
-import { tapLight } from '@/utils/haptics';
+import { select, tapLight } from '@/utils/haptics';
 import { BottomTabInset, DisplayFont, Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 import type { Empreendimento } from '@/types';
+
+// Filtros do mapa: status da obra (a pergunta mais frequente ao olhar um mapa
+// de lançamentos) + "com unidades disponíveis". Aplicados no cliente, sobre os
+// pins já carregados — o mapa não recarrega a cada toque.
+type FiltroValor = string;
+const FILTROS_STATUS: { value: FiltroValor; label: string; match: string[] }[] = [
+  { value: 'pre-lancamento', label: 'Pré-Lanç.', match: ['pre-lancamento', 'Pré-Lançamento', 'pre lancamento'] },
+  { value: 'lancamento', label: 'Lançamento', match: ['Lançamento', 'Na Planta'] },
+  { value: 'construcao', label: 'Em Obras', match: ['Em Construção', 'Em construção', 'Em Obra'] },
+  { value: 'pronto', label: 'Prontos', match: ['Pronto para Morar', 'Concluído', 'Pronto'] },
+];
 
 // Estratégia por plataforma:
 // - iOS: react-native-maps com Apple Maps (nativo, sem chave, funciona no Expo Go)
@@ -63,12 +75,29 @@ export default function MapaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
+  const webMapRef = useRef<LeafletMapHandle>(null);
   const [selected, setSelected] = useState<Empreendimento | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<FiltroValor | null>(null);
+  const [soDisponiveis, setSoDisponiveis] = useState(false);
   const { data, isLoading, isError, refetch } = useEmpreendimentosMapa({
     enabled: Platform.OS !== 'web',
   });
 
-  const pins = useMemo(() => data ?? [], [data]);
+  const todos = useMemo(() => data ?? [], [data]);
+
+  const pins = useMemo(() => {
+    const cfg = FILTROS_STATUS.find((f) => f.value === statusFiltro);
+    return todos.filter((e) => {
+      if (cfg && !cfg.match.includes(e.status ?? '')) return false;
+      if (soDisponiveis && (e.unidades_disponiveis ?? 0) <= 0) return false;
+      return true;
+    });
+  }, [todos, statusFiltro, soDisponiveis]);
+
+  // Ao trocar o filtro, o pin selecionado pode ter saído do mapa.
+  useEffect(() => {
+    if (selected && !pins.some((p) => p.id === selected.id)) setSelected(null);
+  }, [pins, selected]);
 
   // Cluster principal dos pins: um outlier isolado (ex.: um empreendimento em
   // outro país) não pode arrastar a câmera pro meio do oceano — o enquadramento
@@ -167,7 +196,12 @@ export default function MapaScreen() {
   return (
     <View style={styles.root}>
       {USE_WEB_MAP ? (
-        <LeafletMap pins={webPins} bounds={webBounds} onSelect={handleWebSelect} />
+        <LeafletMap
+          ref={webMapRef}
+          pins={webPins}
+          bounds={webBounds}
+          onSelect={handleWebSelect}
+        />
       ) : (
         <MapView
           ref={mapRef}
@@ -193,17 +227,103 @@ export default function MapaScreen() {
         </MapView>
       )}
 
-      {/* Chip de contagem flutuante */}
-      <View style={[styles.topBar, { top: insets.top + Spacing.md }]} pointerEvents="none">
-        <View style={styles.countChip}>
-          <Ionicons name="map" size={14} color={Palette.primary} />
-          <Text style={styles.countChipText}>
-            {isLoading
-              ? 'Carregando…'
-              : `${pins.length} ${pins.length === 1 ? 'empreendimento' : 'empreendimentos'}`}
-          </Text>
-        </View>
+      {/* Filtros + contagem, flutuando sobre o mapa */}
+      <View style={[styles.topBar, { top: insets.top + Spacing.sm }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersRow}
+        >
+          <View style={styles.countChip} pointerEvents="none">
+            <Ionicons name="location" size={13} color={Palette.primary} />
+            <Text style={styles.countChipText}>
+              {isLoading ? '…' : pins.length}
+            </Text>
+          </View>
+
+          {FILTROS_STATUS.map((f) => {
+            const active = statusFiltro === f.value;
+            return (
+              <TouchableOpacity
+                key={f.value}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => {
+                  select();
+                  setStatusFiltro(active ? null : f.value);
+                }}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Filtrar por ${f.label}`}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          <TouchableOpacity
+            style={[styles.filterChip, soDisponiveis && styles.filterChipActive]}
+            onPress={() => {
+              select();
+              setSoDisponiveis((v) => !v);
+            }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ selected: soDisponiveis }}
+            accessibilityLabel="Mostrar só com unidades disponíveis"
+          >
+            <Ionicons
+              name="checkmark-circle"
+              size={13}
+              color={soDisponiveis ? Palette.white : Palette.textTertiary}
+            />
+            <Text style={[styles.filterChipText, soDisponiveis && styles.filterChipTextActive]}>
+              Disponíveis
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
+
+      {/* Recentrar — o mapa é arrastável, precisa de volta para o conjunto */}
+      {USE_WEB_MAP && pins.length > 0 && (
+        <TouchableOpacity
+          style={[
+            styles.recenterBtn,
+            { bottom: BottomTabInset + insets.bottom + (selected ? 150 : Spacing.xl) },
+          ]}
+          onPress={() => {
+            tapLight();
+            webMapRef.current?.fitAll();
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Enquadrar todos os empreendimentos"
+        >
+          <Ionicons name="scan-outline" size={19} color={Palette.primary} />
+        </TouchableOpacity>
+      )}
+
+      {/* Nenhum resultado para os filtros */}
+      {!isLoading && !isError && pins.length === 0 && (
+        <View style={styles.noResults} pointerEvents="box-none">
+          <View style={styles.noResultsCard}>
+            <Ionicons name="filter-outline" size={22} color={Palette.textTertiary} />
+            <Text style={styles.noResultsText}>Nenhum empreendimento com esses filtros.</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setStatusFiltro(null);
+                setSoDisponiveis(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Limpar filtros do mapa"
+            >
+              <Text style={styles.noResultsClear}>Limpar filtros</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Loading overlay discreto */}
       {isLoading && (
@@ -326,29 +446,106 @@ const styles = StyleSheet.create({
     color: Palette.primary,
   },
 
-  // ── Top ──
+  // ── Top: filtros ──
   topBar: {
     position: 'absolute',
     left: 0,
     right: 0,
+  },
+  filtersRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 4,
   },
   countChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Palette.surface,
+    gap: 4,
+    backgroundColor: Palette.primaryLight,
     borderRadius: Radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    height: 34,
     borderWidth: 1,
-    borderColor: Palette.borderLight,
-    ...Shadow.md,
+    borderColor: Palette.primaryMid,
+    ...Shadow.sm,
   },
   countChipText: {
     fontSize: 13,
+    fontWeight: '800',
+    color: Palette.primaryDark,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    justifyContent: 'center',
+    height: 34,
+    paddingHorizontal: 13,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    ...Shadow.sm,
+  },
+  filterChipActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  filterChipText: {
+    fontSize: 12.5,
     fontWeight: '700',
-    color: Palette.text,
+    color: Palette.textSecondary,
+  },
+  filterChipTextActive: { color: Palette.white },
+
+  recenterBtn: {
+    position: 'absolute',
+    right: Spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
+  },
+
+  noResults: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xxl,
+  },
+  noResultsCard: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    ...Shadow.md,
+  },
+  noResultsText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Palette.textSecondary,
+    textAlign: 'center',
+  },
+  noResultsClear: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Palette.primary,
+    paddingVertical: 4,
   },
 
   loadingOverlay: {
