@@ -46,16 +46,18 @@ export const Palette = {
   info:            '#0284C7',
   infoBg:          '#F0F9FF',
 
-  // Neutros — base editorial (quase-branco, texto quase-preto)
-  bg:              '#FDFDFE',
-  bgAlt:           '#F7F7FA',
+  // Neutros — o fundo é um cinza-azulado frio, não branco: cards brancos só
+  // ganham presença se houver de onde se destacar. Com bg #FDFDFE contra
+  // surface #FFFFFF a diferença era imperceptível e a tela ficava chapada.
+  bg:              '#F1F2F7',
+  bgAlt:           '#E9EAF2',
   surface:         '#FFFFFF',
   surfaceVariant:  '#F4F4FA',
   surfaceOverlay:  '#FAFBFF',
 
-  border:          '#E7E7EF',
+  border:          '#E4E5EE',
   borderLight:     '#EDEDF3',
-  borderStrong:    '#D5D5E0',
+  borderStrong:    '#D2D3DF',
   borderFocus:     '#5457F0',
 
   text:            '#16161D',
@@ -71,28 +73,33 @@ export const Palette = {
   overlayLight:    'rgba(22, 22, 29, 0.3)',
 } as const;
 
+// Sombras tingidas de índigo-acinzentado (#252A45) em vez de preto: sobre o
+// fundo frio, sombra preta pura suja o entorno do card em vez de aprofundá-lo.
 export const Shadow = {
   none: {},
   xs: {
-    shadowColor: '#16161D',
+    shadowColor: '#252A45',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
   },
+  // elevation no Android é sombra de outline: valores altos endurecem a
+  // silhueta em vez de aprofundá-la. Mantemos o iOS macio (radius alto) e o
+  // Android discreto (elevation baixa).
   sm: {
-    shadowColor: '#16161D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: '#252A45',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 1,
   },
   md: {
-    shadowColor: '#16161D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 4,
+    shadowColor: '#252A45',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.09,
+    shadowRadius: 18,
+    elevation: 3,
   },
   lg: {
     shadowColor: '#5457F0',

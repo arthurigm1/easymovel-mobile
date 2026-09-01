@@ -108,11 +108,9 @@ const cardStyles = StyleSheet.create({
     gap: 6,
     backgroundColor: Palette.surface,
     borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
     overflow: 'hidden',
     paddingBottom: 10,
-    ...Shadow.xs,
+    ...Shadow.sm,
   },
   logoBox: {
     width: '100%',
@@ -417,12 +415,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 8,
     borderWidth: 1.5,
-    borderColor: Palette.borderLight,
-    ...Shadow.xs,
+    borderColor: 'transparent',
+    ...Shadow.sm,
   },
   searchBoxFocused: {
     borderColor: Palette.primary,
-    ...Shadow.sm,
   },
   searchInput: {
     flex: 1,
@@ -447,13 +444,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.full,
     backgroundColor: Palette.surface,
-    borderWidth: 1,
-    borderColor: Palette.border,
+    ...Shadow.xs,
   },
   pillActive: {
     backgroundColor: Palette.primary,
-    borderColor: Palette.primary,
-    ...Shadow.xs,
   },
   pillText: {
     fontSize: 13,

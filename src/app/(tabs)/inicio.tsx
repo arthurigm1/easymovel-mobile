@@ -595,8 +595,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     gap: Spacing.md,
     backgroundColor: Palette.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Palette.border,
+    // Sem hairline: o fundo frio da lista já marca o fim do header.
   },
   topRow: {
     flexDirection: 'row',
@@ -781,13 +780,13 @@ const styles = StyleSheet.create({
   },
   // Chips só de texto: os ícones coloridos brigavam com o rótulo e inflavam a
   // altura — a linha ficava tomando o topo da tela sem acrescentar informação.
+  // Sobre o header branco, o chip inativo é um preenchimento suave em vez de
+  // contorno — bordas finas repetidas quatro vezes viram ruído.
   categoryChip: {
     justifyContent: 'center',
     paddingHorizontal: 14,
     borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surface,
+    backgroundColor: Palette.bgAlt,
     height: 34,
   },
   categoryChipActive: {

@@ -81,11 +81,15 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
   };
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
+  // A animação de entrada e o transform de toque vivem em camadas separadas:
+  // no mesmo nó, a layout animation sobrescreve o transform e o card pode
+  // ficar preso invisível (o aviso do Reanimated sobre isso é literal).
   return (
     <Animated.View
       entering={reducedMotion ? undefined : FadeInDown.duration(380).springify().damping(18)}
-      style={[styles.shadowWrap, featured && styles.shadowWrapFeatured, animatedStyle]}
+      style={[styles.shadowWrap, featured && styles.shadowWrapFeatured]}
     >
+      <Animated.View style={animatedStyle}>
       <Pressable
         style={[styles.card, featured && styles.cardFeatured]}
         onPressIn={pressIn}
@@ -218,6 +222,7 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
           )}
         </View>
       </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 });
@@ -233,12 +238,12 @@ const styles = StyleSheet.create({
   shadowWrapFeatured: {
     ...Shadow.lg,
   },
+  // Sem borda: sobre o fundo tonal, a sombra sozinha já destaca o card —
+  // borda + sombra + contraste de fundo somados só endurecem a silhueta.
   card: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.xl,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Palette.borderLight,
   },
   // Featured signature: subtle indigo ring around the whole card.
   cardFeatured: {
