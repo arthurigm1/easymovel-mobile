@@ -99,7 +99,8 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
           priceStr ? `a partir de ${priceStr}` : null,
         ].filter(Boolean).join(', ')}
       >
-        {/* ── Media (photo as hero) ── */}
+        {/* ── Media: só a foto e os selos. Nome/construtora foram para o corpo,
+             onde texto escuro sobre branco é sempre legível. ── */}
         <View style={styles.media}>
           {mainImage ? (
             <Image
@@ -114,15 +115,14 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
               <Ionicons name="business-outline" size={34} color={Palette.textDisabled} />
             </View>
           )}
-          {/* Bottom scrim guarantees legibility of the overlay text (not just textShadow). */}
+          {/* Scrim leve só no topo, para os selos não sumirem em fotos claras. */}
           <LinearGradient
-            colors={['rgba(0,0,0,0.30)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.80)']}
-            locations={[0, 0.4, 1]}
-            style={StyleSheet.absoluteFill}
+            colors={['rgba(0,0,0,0.34)', 'rgba(0,0,0,0)']}
+            locations={[0, 0.55]}
+            style={styles.mediaScrim}
             pointerEvents="none"
           />
 
-          {/* Top row: ONE primary badge + ONE accent (left) + construtora logo (right) */}
           <View style={styles.mediaTop}>
             <View style={styles.mediaTopLeft}>
               {vendido ? (
@@ -139,33 +139,43 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
                 </View>
               ) : null}
             </View>
-            <View style={styles.mediaTopRight}>
-              <FavoriteButton id={e.id} size={19} variant="overlay" />
-              {logoUrl ? (
-                <View style={styles.logoChip}>
-                  <Image source={logoUrl} style={styles.logo} contentFit="contain" cachePolicy="memory-disk" />
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          {/* Bottom overlay: construtora + name + location */}
-          <View style={styles.mediaBottom}>
-            {empresaNome ? (
-              <Text style={styles.company} numberOfLines={1}>{empresaNome.toUpperCase()}</Text>
-            ) : null}
-            <Text style={styles.name} numberOfLines={2}>{e.nome_empreendimento}</Text>
-            {location ? (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-sharp" size={12} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.location} numberOfLines={1}>{location}</Text>
-              </View>
-            ) : null}
+            <FavoriteButton id={e.id} size={19} variant="overlay" />
           </View>
         </View>
 
-        {/* ── Body: specs + price ── */}
+        {/* ── Corpo ── */}
         <View style={styles.body}>
+          {/* Construtora: logo + nome juntos, em superfície branca. É a primeira
+              informação do card — o corretor filtra mentalmente por marca. */}
+          {empresaNome ? (
+            <View style={styles.companyRow}>
+              {logoUrl ? (
+                <View style={styles.logoChip}>
+                  <Image
+                    source={logoUrl}
+                    style={styles.logo}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </View>
+              ) : (
+                <View style={[styles.logoChip, styles.logoChipEmpty]}>
+                  <Ionicons name="business" size={13} color={Palette.primaryMid} />
+                </View>
+              )}
+              <Text style={styles.company} numberOfLines={1}>{empresaNome}</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.name} numberOfLines={2}>{e.nome_empreendimento}</Text>
+
+          {location ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-sharp" size={13} color={Palette.textTertiary} />
+              <Text style={styles.location} numberOfLines={1}>{location}</Text>
+            </View>
+          ) : null}
+
           {specs.length > 0 && (
             <View style={styles.specsRow}>
               {specs.map((s, i) => (
@@ -178,26 +188,32 @@ export const EmpreendimentoCard = memo(function EmpreendimentoCard({ empreendime
             </View>
           )}
 
-          {priceStr ? (
-            <View style={styles.priceRow}>
-              <View style={styles.priceBlock}>
-                <Text style={styles.priceLabel}>A partir de</Text>
-                <Text style={styles.price} numberOfLines={1}>{priceStr}</Text>
-              </View>
-              {pricePerM2Str ? (
-                <View style={styles.perM2Chip}>
-                  <Text style={styles.perM2Text}>{pricePerM2Str}</Text>
+          {(priceStr || emVenda) && (
+            <View style={styles.footer}>
+              {priceStr ? (
+                <View style={styles.priceRow}>
+                  <View style={styles.priceBlock}>
+                    <Text style={styles.priceLabel}>A partir de</Text>
+                    <Text style={styles.price} numberOfLines={1}>{priceStr}</Text>
+                  </View>
+                  {pricePerM2Str ? (
+                    <View style={styles.perM2Chip}>
+                      <Text style={styles.perM2Text}>{pricePerM2Str}</Text>
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
-            </View>
-          ) : null}
 
-          {emVenda && (
-            <View style={styles.progressRow}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${pctVendido}%` as `${number}%` }]} />
-              </View>
-              <Text style={styles.progressText}>{pctVendido}% vendido</Text>
+              {emVenda && (
+                <View style={styles.progressRow}>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[styles.progressFill, { width: `${pctVendido}%` as `${number}%` }]}
+                    />
+                  </View>
+                  <Text style={styles.progressText}>{pctVendido}% vendido</Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -232,11 +248,17 @@ const styles = StyleSheet.create({
 
   // Media
   media: {
-    aspectRatio: 16 / 10,
+    aspectRatio: 16 / 9,
     backgroundColor: Palette.surfaceVariant,
-    justifyContent: 'space-between',
   },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
+  mediaScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 84,
+  },
   mediaTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -250,11 +272,6 @@ const styles = StyleSheet.create({
     gap: 6,
     flexShrink: 1,
     flexWrap: 'wrap',
-  },
-  mediaTopRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-    flexShrink: 0,
   },
   soldPill: {
     backgroundColor: 'rgba(22,22,29,0.72)',
@@ -274,52 +291,58 @@ const styles = StyleSheet.create({
   },
   promoPill: { backgroundColor: Palette.unitPromocao },
   accentPillText: { fontSize: 9.5, fontWeight: '800', color: Palette.white, letterSpacing: 0.3 },
-  logoChip: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.sm,
-    backgroundColor: Palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-    ...Shadow.xs,
-  },
-  logo: { width: '100%', height: '100%' },
-
-  mediaBottom: { paddingHorizontal: 14, paddingBottom: 12, gap: 2 },
-  company: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 0.6,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  name: {
-    fontFamily: DisplayFont.bold,
-    fontSize: 21,
-    lineHeight: 25,
-    color: Palette.white,
-    letterSpacing: -0.4,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
-  location: {
-    fontSize: 12.5,
-    color: 'rgba(255,255,255,0.92)',
-    fontWeight: '500',
-    flexShrink: 1,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
 
   // Body
-  body: { paddingHorizontal: 14, paddingTop: 11, paddingBottom: 13, gap: 10 },
-  specsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  body: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 13, gap: 6 },
+
+  // Construtora — logo + nome, legíveis sobre o branco
+  companyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoChip: {
+    width: 26,
+    height: 26,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.white,
+    borderWidth: 1,
+    borderColor: Palette.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
+  },
+  logoChipEmpty: { backgroundColor: Palette.primaryLight, borderColor: Palette.primarySubtle },
+  logo: { width: '100%', height: '100%' },
+  company: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '800',
+    color: Palette.textSecondary,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+
+  name: {
+    fontFamily: DisplayFont.bold,
+    fontSize: 20,
+    lineHeight: 25,
+    color: Palette.text,
+    letterSpacing: -0.4,
+    marginTop: 2,
+  },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  location: {
+    fontSize: 13,
+    color: Palette.textSecondary,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: Palette.borderLight,
+    paddingTop: 10,
+    marginTop: 4,
+    gap: 8,
+  },
+  specsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 },
   specItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   specDot: {
     width: 3,

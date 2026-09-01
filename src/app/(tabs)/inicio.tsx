@@ -441,12 +441,9 @@ export default function InicioScreen() {
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={cat.label}
                   >
-                    <Ionicons
-                      name={cat.icon}
-                      size={15}
-                      color={active ? Palette.white : Palette.primary}
-                    />
-                    <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{cat.label}</Text>
+                    <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
+                      {cat.label}
+                    </Text>
                   </PressableScale>
                 );
               }}
@@ -594,19 +591,18 @@ export default function InicioScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.bg },
   headerArea: {
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    gap: Spacing.md,
     backgroundColor: Palette.surface,
-    borderBottomLeftRadius: Radius.xxxl,
-    borderBottomRightRadius: Radius.xxxl,
-    ...Shadow.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.border,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
   },
   regiaoBtn: {
@@ -669,30 +665,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
-    minHeight: 38,
+    paddingHorizontal: Spacing.lg,
+    minHeight: 30,
   },
   countText: {
-    fontSize: 14,
-    color: Palette.textSecondary,
+    fontSize: 13,
+    color: Palette.textTertiary,
     fontWeight: '600',
   },
   countNumber: {
     fontFamily: DisplayFont.bold,
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: 14,
     color: Palette.text,
   },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: Palette.primarySubtle,
-    backgroundColor: Palette.primaryLight,
+    gap: 5,
     borderRadius: Radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     minHeight: 38,
   },
   sortBtnText: {
@@ -787,29 +780,27 @@ const styles = StyleSheet.create({
     color: Palette.textSecondary,
   },
   categoryRow: {
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
     gap: 7,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+  },
+  // Chips só de texto: os ícones coloridos brigavam com o rótulo e inflavam a
+  // altura — a linha ficava tomando o topo da tela sem acrescentar informação.
+  categoryChip: {
+    justifyContent: 'center',
+    paddingHorizontal: 14,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Palette.borderLight,
-    backgroundColor: Palette.surfaceVariant,
-    minHeight: 42,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+    height: 34,
   },
   categoryChipActive: {
     borderColor: Palette.primary,
     backgroundColor: Palette.primary,
-    ...Shadow.md,
   },
   categoryText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Palette.textSecondary,
   },
   categoryTextActive: { color: Palette.white, fontWeight: '800' },
