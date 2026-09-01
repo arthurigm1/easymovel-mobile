@@ -22,7 +22,7 @@ import {
   formatQuartosRange,
   formatPricePerM2,
 } from '@/utils/format';
-import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 import type { Empreendimento } from '@/types';
 
 interface Props {
@@ -279,27 +279,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  soldPillText: { fontSize: 10.5, fontWeight: '800', color: Palette.white, letterSpacing: 0.2 },
+  soldPillText: { ...Type.caption, color: Palette.white },
   accentPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: Palette.primary,
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   promoPill: { backgroundColor: Palette.unitPromocao },
-  accentPillText: { fontSize: 9.5, fontWeight: '800', color: Palette.white, letterSpacing: 0.3 },
+  accentPillText: { ...Type.caption, color: Palette.white },
 
-  // Body
-  body: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 13, gap: 6 },
+  // Body — 16px de respiro lateral, ritmo vertical em múltiplos de 4
+  body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14, gap: 4 },
 
   // Construtora — logo + nome, legíveis sobre o branco
-  companyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  companyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   logoChip: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
     borderRadius: Radius.sm,
     backgroundColor: Palette.white,
     borderWidth: 1,
@@ -312,38 +312,33 @@ const styles = StyleSheet.create({
   logo: { width: '100%', height: '100%' },
   company: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '800',
-    color: Palette.textSecondary,
-    letterSpacing: 0.4,
+    ...Type.overline,
+    color: Palette.textTertiary,
     textTransform: 'uppercase',
   },
 
   name: {
-    fontFamily: DisplayFont.bold,
-    fontSize: 20,
-    lineHeight: 25,
+    ...Type.heading,
+    fontSize: 19,
+    lineHeight: 24,
     color: Palette.text,
-    letterSpacing: -0.4,
-    marginTop: 2,
   },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   location: {
-    fontSize: 13,
+    ...Type.meta,
     color: Palette.textSecondary,
-    fontWeight: '500',
     flexShrink: 1,
   },
 
   footer: {
     borderTopWidth: 1,
     borderTopColor: Palette.borderLight,
-    paddingTop: 10,
-    marginTop: 4,
+    paddingTop: 12,
+    marginTop: 8,
     gap: 8,
   },
-  specsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 },
-  specItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  specsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 8 },
+  specItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   specDot: {
     width: 3,
     height: 3,
@@ -351,22 +346,20 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.borderStrong,
     marginHorizontal: 8,
   },
-  specText: { fontSize: 13, fontWeight: '600', color: Palette.textSecondary },
+  specText: { ...Type.meta, color: Palette.textSecondary },
 
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
   },
-  priceBlock: { flexShrink: 1 },
-  priceLabel: { fontSize: 10, fontWeight: '600', color: Palette.textTertiary, letterSpacing: 0.2 },
+  priceBlock: { flexShrink: 1, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  priceLabel: { ...Type.caption, color: Palette.textTertiary },
   price: {
-    fontFamily: DisplayFont.extraBold,
-    fontSize: 18,
+    ...Type.numeric,
+    fontSize: 19,
     color: Palette.text,
-    letterSpacing: -0.4,
-    marginTop: 1,
   },
   perM2Chip: {
     backgroundColor: Palette.surfaceVariant,
@@ -374,7 +367,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  perM2Text: { fontSize: 11, fontWeight: '700', color: Palette.textSecondary },
+  perM2Text: { ...Type.caption, color: Palette.textSecondary },
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   progressTrack: {
@@ -385,5 +378,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: Radius.full, backgroundColor: Palette.primary },
-  progressText: { fontSize: 10.5, fontWeight: '700', color: Palette.textTertiary },
+  progressText: { ...Type.caption, color: Palette.textTertiary },
 });

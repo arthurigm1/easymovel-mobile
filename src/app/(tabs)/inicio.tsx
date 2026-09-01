@@ -28,7 +28,7 @@ import { EmpreendimentoCard } from '@/components/EmpreendimentoCard';
 import { FilterSheet, REGIAO_OPTIONS, ORDENAR_OPTIONS } from '@/components/FilterSheet';
 import { EmptyState } from '@/components/EmptyState';
 import { SkeletonList } from '@/components/SkeletonCard';
-import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 import type { Empreendimento, FilterState } from '@/types';
 
 const EMPTY_FILTERS: FilterState = {};
@@ -412,7 +412,7 @@ export default function InicioScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={activeCount > 0 ? `Filtros, ${activeCount} ativos` : 'Abrir filtros'}
               >
-                <Ionicons name="options-outline" size={20} color={Palette.white} />
+                <Ionicons name="options-outline" size={20} color={Palette.text} />
                 {activeCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{activeCount}</Text>
@@ -613,53 +613,51 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   logoWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.lg,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
     backgroundColor: Palette.primaryLight,
-    borderWidth: 1,
-    borderColor: Palette.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadow.xs,
   },
   logo: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
   },
   regiaoTexts: {
     flexShrink: 1,
-    gap: 3,
+    gap: 1,
   },
   regiaoEyebrow: {
+    ...Type.overline,
     fontSize: 10,
-    fontWeight: '800',
-    color: Palette.primary,
-    letterSpacing: 1.2,
+    color: Palette.textTertiary,
+    letterSpacing: 0.9,
   },
   regiaoText: {
-    fontFamily: DisplayFont.bold,
-    fontSize: 21,
+    ...Type.title,
+    fontSize: 20,
     color: Palette.text,
-    letterSpacing: -0.4,
     flexShrink: 1,
   },
   regiaoChevron: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     borderRadius: Radius.full,
-    backgroundColor: Palette.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Botão de filtros: contorno em vez de bloco sólido com glow — o CTA da tela
+  // é o conteúdo, não o controle.
   filtrosBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.lg,
-    backgroundColor: Palette.primary,
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.border,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadow.lg,
   },
   countRow: {
     flexDirection: 'row',
@@ -669,13 +667,11 @@ const styles = StyleSheet.create({
     minHeight: 30,
   },
   countText: {
-    fontSize: 13,
+    ...Type.meta,
     color: Palette.textTertiary,
-    fontWeight: '600',
   },
   countNumber: {
-    fontFamily: DisplayFont.bold,
-    fontWeight: '800',
+    ...Type.strong,
     fontSize: 14,
     color: Palette.text,
   },
@@ -799,27 +795,26 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.primary,
   },
   categoryText: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...Type.meta,
     color: Palette.textSecondary,
   },
-  categoryTextActive: { color: Palette.white, fontWeight: '800' },
+  categoryTextActive: { color: Palette.white, fontWeight: '700' },
 
   badge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    minWidth: 19,
-    height: 19,
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
     borderRadius: 10,
-    paddingHorizontal: 4,
-    backgroundColor: Palette.white,
+    paddingHorizontal: 5,
+    backgroundColor: Palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Palette.primary,
+    borderColor: Palette.surface,
   },
-  badgeText: { fontSize: 10, fontWeight: '800', color: Palette.primary },
+  badgeText: { fontSize: 11, fontWeight: '800', color: Palette.white },
 
   skeletons: { paddingTop: Spacing.md },
   list: { paddingTop: Spacing.md, paddingBottom: Spacing.xxxl },

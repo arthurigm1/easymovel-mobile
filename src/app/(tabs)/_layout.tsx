@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { tapLight } from '@/utils/haptics';
-import { Palette, Radius, Shadow } from '@/constants/theme';
+import { Palette, Radius } from '@/constants/theme';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -87,10 +87,13 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: Palette.border,
           height: 60 + insets.bottom,
-          paddingTop: 10,
+          paddingTop: 8,
           paddingBottom: insets.bottom + 6,
           position: Platform.OS === 'ios' ? 'absolute' : undefined,
-          ...Shadow.sm,
+          // Sem sombra: a hairline já separa. Sombra em barra fixa vira sujeira
+          // sob o conteúdo que rola por baixo dela.
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarBackground: Platform.OS === 'ios'
           ? () => <BlurView intensity={90} tint="light" style={StyleSheet.absoluteFill} />
@@ -100,9 +103,9 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '700',
-          letterSpacing: -0.1,
-          marginTop: 4,
+          fontWeight: '600',
+          letterSpacing: 0,
+          marginTop: 3,
         },
       }}
     >

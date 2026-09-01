@@ -64,7 +64,7 @@ import {
   getEmpresaNome,
   getMainImage,
 } from '@/utils/format';
-import { Palette, Radius, Shadow, Spacing, DisplayFont } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing, DisplayFont, Type } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HERO_HEIGHT = 400;
@@ -1487,33 +1487,30 @@ const styles = StyleSheet.create({
   },
 
   // Title
-  titleBlock: { gap: 8 },
+  titleBlock: { gap: 6 },
   companyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: {
     width: 24,
     height: 24,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.surfaceVariant,
+    backgroundColor: Palette.white,
     borderWidth: 1,
     borderColor: Palette.borderLight,
   },
   companyName: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
+    ...Type.overline,
     color: Palette.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   name: {
-    fontFamily: DisplayFont.bold,
+    ...Type.title,
     fontSize: 26,
     color: Palette.text,
     lineHeight: 32,
-    letterSpacing: -0.4,
   },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
-  address: { fontSize: 13.5, color: Palette.textSecondary, flex: 1, lineHeight: 19 },
+  address: { ...Type.meta, color: Palette.textSecondary, flex: 1, lineHeight: 19 },
 
   // Key facts
   factsBlock: {
@@ -1546,18 +1543,16 @@ const styles = StyleSheet.create({
     borderLeftColor: Palette.borderLight,
   },
   factValue: {
-    fontFamily: DisplayFont.bold,
+    ...Type.heading,
     fontSize: 16,
     color: Palette.text,
-    letterSpacing: -0.3,
     textAlign: 'center',
   },
   factLabel: {
-    fontSize: 11,
+    ...Type.overline,
+    fontSize: 10,
     color: Palette.textTertiary,
-    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
     textAlign: 'center',
   },
 
@@ -1573,11 +1568,9 @@ const styles = StyleSheet.create({
   },
   priceEyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   priceEyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...Type.overline,
     color: Palette.primaryDark,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   promoTag: {
     flexDirection: 'row',
@@ -1606,18 +1599,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontFamily: DisplayFont.bold,
-    fontSize: 19,
+    ...Type.heading,
     color: Palette.text,
-    letterSpacing: -0.3,
   },
   sectionCount: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...Type.meta,
     color: Palette.textTertiary,
   },
   sectionHint: {
-    fontSize: 12.5,
+    ...Type.caption,
+    fontWeight: '500',
     color: Palette.textTertiary,
     marginTop: -6,
   },

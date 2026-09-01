@@ -139,6 +139,29 @@ export const Spacing = {
   six:  64,
 } as const;
 
+// ─── Escala tipográfica ───────────────────────────────────────────────────────
+// Uma escala fechada, sem meios-termos. O app tinha 10.5/11.5/12.5/13.5/14.5
+// espalhados — cada tela inventava o próprio tamanho e o conjunto perdia ritmo.
+// Só existem estes degraus; se um texto "pede" 13.5, ele é 13 ou 14.
+export const Type = {
+  /** Título de tela (Instrument Sans bold) */
+  title:    { fontFamily: 'InstrumentSans_700Bold', fontSize: 22, letterSpacing: -0.5 },
+  /** Título de seção / nome de card */
+  heading:  { fontFamily: 'InstrumentSans_700Bold', fontSize: 18, letterSpacing: -0.3 },
+  /** Destaque numérico (preço, KPI) */
+  numeric:  { fontFamily: 'InstrumentSans_700Bold', fontSize: 20, letterSpacing: -0.5 },
+  /** Rótulo forte de linha (item de lista, botão) */
+  strong:   { fontSize: 15, fontWeight: '700' as const, letterSpacing: -0.1 },
+  /** Corpo padrão */
+  body:     { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
+  /** Corpo secundário / metadados */
+  meta:     { fontSize: 13, fontWeight: '500' as const },
+  /** Legendas, contadores, chips */
+  caption:  { fontSize: 12, fontWeight: '600' as const },
+  /** Eyebrow — sempre UPPERCASE com tracking positivo */
+  overline: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.6 },
+} as const;
+
 export const Typography = {
   display:  { fontSize: 36, fontWeight: '900' as const, letterSpacing: -1 },
   h1:       { fontSize: 30, fontWeight: '900' as const, letterSpacing: -0.8 },
